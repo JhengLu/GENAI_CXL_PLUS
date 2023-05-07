@@ -69,7 +69,7 @@ int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uin
     struct perf_event_attr event_attr;
 	memset(&event_attr, 0, sizeof(event_attr));
 	////event_attr.type = PERF_TYPE_RAW;
-	event_attr.type = 25;
+	event_attr.type = type;
 	event_attr.size = sizeof(event_attr);
 	event_attr.config = event_id;
 	//event_attr.sample_period = sampling_period;
