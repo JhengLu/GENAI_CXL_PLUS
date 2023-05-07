@@ -8,13 +8,15 @@
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 
+
 #define PAGE_SIZE 4096UL
 #define NUM_PERF_EVENT_MMAP_PAGES 64UL      // NOTE: might consider increase this value later on
 #define SAMPLING_PERIOD 500UL               // in # of events
 
 #define NUM_SOCKETS 2
-// perf_event_attr.type value for each individual cha unit found in /sys/bus/event_source/devices/uncore_cha*/type
-const uint32_t PMU_TYPE[] = {25, 26};
+#define PROCESSOR_GHZ 2.4   // CloudLab c6420
+// perf_event_attr.type value for each individual cha unit found in /sys/bus/event_source/devices/uncore_cha_*/type
+const uint32_t PMU_TYPE[] = {25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40};   // CloudLab c6420
 
 
 class Monitor {
@@ -31,7 +33,8 @@ class Monitor {
   private:
     uint32_t _num_sockets;
     std::vector<uint32_t> _pmu_type;
-    std::vector<std::vector<int>> _fd;     // file_descriptor[socket][cha]
+    std::vector<std::vector<int>> _fd_rxc_occ;    // file_descriptor[socket][cha]
+    std::vector<std::vector<int>> _fd_rxc_ins;    // file_descriptor[socket][cha]
 
 };
 

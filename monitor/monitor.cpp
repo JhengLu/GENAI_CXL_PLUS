@@ -20,8 +20,7 @@
 
 static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
                             int cpu, int group_fd, unsigned long flags) {
-    int ret;
-    ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
+    int ret = syscall(__NR_perf_event_open, hw_event, pid, cpu,
                     group_fd, flags);
     return ret;
 }
@@ -31,7 +30,8 @@ Monitor::Monitor() {
     for (const auto &x : PMU_TYPE) {
         _pmu_type.push_back(x);
     }
-    _fd.resize(NUM_SOCKETS);
+    _fd_rxc_occ.resize(NUM_SOCKETS);
+    _fd_rxc_ins.resize(NUM_SOCKETS);
 }
 
 Monitor::~Monitor() {
@@ -80,21 +80,26 @@ int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uin
 }
 
 void Monitor::measure_latency() {
-    // setup fd for each PMU and per socket
+    // setup fd for each event on each PMU per socket
     for (int i = 0; i < _num_sockets; i++) {
         for (int j = 0; j < _pmu_type.size(); j++) {
-            int fd = perf_event_setup(-1, i, -1, _pmu_type[j], EVENT_RxC_INSERTS_IRQ);
-            _fd[i].push_back(fd);
+            int fd = perf_event_setup(-1, i, -1, _pmu_type[j], EVENT_RxC_OCCUPANCY_IRQ);
+            _fd_rxc_occ[i].push_back(fd);
+            perf_event_reset(fd);
+
+            fd = perf_event_setup(-1, i, -1, _pmu_type[j], EVENT_RxC_INSERTS_IRQ);
+            _fd_rxc_ins[i].push_back(fd);
             perf_event_reset(fd);
         }
     }
 
     // monitor all PMUs
-    uint64_t count;     // TODO: need to construct a custom struct when we specify more read format later
+    //std::vector<uint64_t> count_sum(2, 0);
     while (true) {
         for (int i = 0; i < _num_sockets; i++) {
             for (int j = 0; j < _pmu_type.size(); j++) {
-                perf_event_enable(_fd[i][j]);
+                perf_event_enable(_fd_rxc_occ[i][j]);
+                perf_event_enable(_fd_rxc_ins[i][j]);
             }
         }
 
@@ -102,16 +107,27 @@ void Monitor::measure_latency() {
 
         for (int i = 0; i < _num_sockets; i++) {
             for (int j = 0; j < _pmu_type.size(); j++) {
-                perf_event_disable(_fd[i][j]);
+                perf_event_disable(_fd_rxc_occ[i][j]);
+                perf_event_disable(_fd_rxc_ins[i][j]);
             }
         }
 
         for (int i = 0; i < _num_sockets; i++) {
             for (int j = 0; j < _pmu_type.size(); j++) {
-                read(_fd[i][j], &count, sizeof(count));
-                std::cout << "socket[" << i << "]: cha" << j << " count = " << count << std::endl;
+                uint64_t count_occ = 0, count_ins = 0;     // TODO: need to construct a custom struct when we specify more read format later
+                read(_fd_rxc_occ[i][j], &count_occ, sizeof(count_occ));
+                //std::cout << "socket[" << i << "]: cha" << j << " RxC_OCCUPANCY.IRQ = " << count_occ << std::endl;
+                read(_fd_rxc_ins[i][j], &count_ins, sizeof(count_ins));
+                //std::cout << "socket[" << i << "]: cha" << j << " RxC_INSERTS.IRQ = " << count_ins << std::endl;
+                double latency_cycles = (double) count_occ / count_ins;
+                double latency_ns = latency_cycles / PROCESSOR_GHZ;
+                std::cout << "socket[" << i << "]: cha" << j << "  \tRxC_OCCUPANCY.IRQ = " << count_occ
+                    << ", RxC_INSERTS.IRQ = " << count_ins << ", latency = " << latency_ns << " ns" << std::endl;
+                //count_sum[i] += count;
             }
+            //std::cout << "socket[" << i << "]: total count = " << count_sum[i] << std::endl;
         }
+        std::cout << std::endl;
     }
 }
 
