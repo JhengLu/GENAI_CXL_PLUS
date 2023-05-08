@@ -62,6 +62,8 @@ class Monitor {
     std::vector<std::vector<int>> _fd_cas_rd;
     std::vector<std::vector<int>> _fd_cas_wr;
     std::vector<std::vector<int>> _fd_cas_all;
+    std::vector<std::vector<uint64_t>> _curr_count_occ;
+    std::vector<std::vector<uint64_t>> _curr_count_ins;
     std::vector<std::vector<uint64_t>> _curr_count_rd;
     std::vector<std::vector<uint64_t>> _curr_count_wr;
     std::vector<std::vector<double>> _bw_read;

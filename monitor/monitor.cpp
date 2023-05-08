@@ -42,6 +42,10 @@ Monitor::Monitor() {
     _fd_cas_rd.resize(NUM_SOCKETS);
     _fd_cas_wr.resize(NUM_SOCKETS);
     _fd_cas_all.resize(NUM_SOCKETS);
+    _curr_count_occ = std::vector<std::vector<uint64_t>>(_num_sockets,
+        std::vector<uint64_t>(_pmu_cha_type.size(), 0));
+    _curr_count_ins = std::vector<std::vector<uint64_t>>(_num_sockets,
+        std::vector<uint64_t>(_pmu_cha_type.size(), 0));
     _curr_count_rd = std::vector<std::vector<uint64_t>>(_num_sockets,
         std::vector<uint64_t>(_pmu_imc_type.size(), 0));
     _curr_count_wr = std::vector<std::vector<uint64_t>>(_num_sockets,
@@ -137,13 +141,14 @@ void Monitor::measure_latency() {
             }
         }
 
-        // TOOD: do the same fix (as bw) for lat measurement
         for (int i = 0; i < _num_sockets; i++) {
             for (int j = 0; j < _pmu_cha_type.size(); j++) {
                 uint64_t count_occ = 0, count_ins = 0;     // TODO: need to construct a custom struct when we specify more read format later
                 read(_fd_rxc_occ[i][j], &count_occ, sizeof(count_occ));
                 read(_fd_rxc_ins[i][j], &count_ins, sizeof(count_ins));
-                double latency_cycles = (double) count_occ / count_ins;
+                double latency_cycles = (double) (count_occ - _curr_count_occ[i][j]) / (count_ins - _curr_count_ins[i][j]);
+                _curr_count_occ[i][j] = count_occ;
+                _curr_count_ins[i][j] = count_ins;
                 double latency_ns = latency_cycles / PROCESSOR_GHZ;
 
                 std::cout << "socket[" << i << "]: cha" << j << "  \tRxC_OCCUPANCY.IRQ = " << count_occ
@@ -323,6 +328,6 @@ void Monitor::measure_bandwidth_all() {
 
 int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
-    //monitor.measure_latency();
-    monitor.measure_bandwidth_all();
+    monitor.measure_latency();
+    //monitor.measure_bandwidth_all();
 }
