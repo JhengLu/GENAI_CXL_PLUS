@@ -16,7 +16,7 @@
 #define NUM_PERF_EVENT_MMAP_PAGES 64UL      // NOTE: might consider increase this value later on
 #define SAMPLING_PERIOD_EVENT 500UL         // in # of events
 //#define SAMPLING_PERIOD_MS 50UL             // in ms
-#define SAMPLING_PERIOD_MS 5000UL             // in ms
+#define SAMPLING_PERIOD_MS 500UL             // in ms
 #define EWMA_ALPHA 0.5
 
 #define NUM_SOCKETS 2
