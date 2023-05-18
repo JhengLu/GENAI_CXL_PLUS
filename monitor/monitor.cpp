@@ -38,6 +38,25 @@ LatencyInfoPerCore::LatencyInfoPerCore(int cpu_id) {
 LatencyInfoPerCore::~LatencyInfoPerCore() {
 }
 
+LatencyInfoPerProcess::LatencyInfoPerProcess() {
+    pid = -1;
+    fd_l1d_pend_miss = -1;
+    fd_retired_l3_miss = -1;
+    curr_count_l1d_pend_miss = 0;
+    curr_count_retired_l3_miss = 0;
+}
+
+LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
+    pid = pid;
+    fd_l1d_pend_miss = -1;
+    fd_retired_l3_miss = -1;
+    curr_count_l1d_pend_miss = 0;
+    curr_count_retired_l3_miss = 0;
+}
+
+LatencyInfoPerProcess::~LatencyInfoPerProcess() {
+}
+
 Monitor::Monitor() {
     num_sockets_ = NUM_SOCKETS;
     sampling_period_ms_ = SAMPLING_PERIOD_MS;
@@ -221,6 +240,53 @@ void Monitor::measure_core_latency(int cpu_id) {
     }
 }
 
+void Monitor::perf_event_setup_process_latency(int pid) {
+    auto latinfo = LatencyInfoPerProcess(pid);
+    lat_info_process_[pid] = latinfo;
+
+    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
+    lat_info_process_[pid].fd_l1d_pend_miss = fd;
+    perf_event_reset(fd);
+
+    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
+    lat_info_process_[pid].fd_retired_l3_miss = fd;
+    perf_event_reset(fd);
+}
+
+void Monitor::perf_event_enable_process_latency(int pid) {
+    perf_event_enable(lat_info_process_[pid].fd_l1d_pend_miss);
+    perf_event_enable(lat_info_process_[pid].fd_retired_l3_miss);
+}
+
+void Monitor::perf_event_disable_process_latency(int pid) {
+    perf_event_disable(lat_info_process_[pid].fd_l1d_pend_miss);
+    perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
+}
+
+void Monitor::perf_event_read_process_latency(int pid) {
+    uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
+    read(lat_info_process_[pid].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
+    read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
+    double latency_cycles = (double) (count_l1d_pend_miss - lat_info_process_[pid].curr_count_l1d_pend_miss)
+        / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
+    lat_info_process_[pid].curr_count_l1d_pend_miss = count_l1d_pend_miss;
+    lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
+    double latency_ns = latency_cycles / PROCESSOR_GHZ;
+    std::cout << "process " << pid << "]: latency = " << latency_ns << " ns" << std::endl;
+}
+
+void Monitor::measure_process_latency(int pid) {
+    perf_event_setup_process_latency(pid);
+    while (true) {
+        perf_event_enable_process_latency(pid);
+
+        sleep_ms(sampling_period_ms_);
+
+        perf_event_disable_process_latency(pid);
+        perf_event_read_process_latency(pid);
+    }
+}
+
 // opcode - 0: read, 1: write, 2: both
 void Monitor::perf_event_setup_mem_bw(int opcode) {
     if (opcode == 0) {
@@ -390,5 +456,7 @@ int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
     //monitor.measure_latency();
     //monitor.measure_bandwidth_all();
-    monitor.measure_core_latency(0);
+    //monitor.measure_core_latency(0);
+    int pid = atoi(argv[1]);
+    monitor.measure_process_latency(pid);
 }

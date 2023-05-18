@@ -43,6 +43,18 @@ class LatencyInfoPerCore {
     uint64_t curr_count_retired_l3_miss;
 };
 
+class LatencyInfoPerProcess {
+  public:
+    LatencyInfoPerProcess();    // std::map wants it for [] operator
+    LatencyInfoPerProcess(int pid);
+    ~LatencyInfoPerProcess();
+    int pid;
+    int fd_l1d_pend_miss;
+    int fd_retired_l3_miss;
+    uint64_t curr_count_l1d_pend_miss;
+    uint64_t curr_count_retired_l3_miss;
+};
+
 class Monitor {
   public:
     Monitor();
@@ -59,6 +71,11 @@ class Monitor {
     void perf_event_disable_core_latency(int cpu_id);
     void perf_event_read_core_latency(int cpu_id);
     void measure_core_latency(int cpu_id);
+    void perf_event_setup_process_latency(int pid);
+    void perf_event_enable_process_latency(int pid);
+    void perf_event_disable_process_latency(int pid);
+    void perf_event_read_process_latency(int pid);
+    void measure_process_latency(int pid);
     void perf_event_setup_mem_bw(int opcode);
     void perf_event_enable_mem_bw(int opcode);
     void perf_event_disable_mem_bw(int opcode);
@@ -92,7 +109,7 @@ class Monitor {
     std::vector<LatencyInfoPerCore> lat_info_cpu_;
 
     // for per-thread lat measurements ({pid, ()})
-    //std::map<int, int> fd_map_lat_events;
+    std::map<int, LatencyInfoPerProcess> lat_info_process_;
 
 
 };
