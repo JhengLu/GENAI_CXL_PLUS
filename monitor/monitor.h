@@ -3,6 +3,7 @@
 
 #include <linux/perf_event.h>
 #include <vector>
+#include <map>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
@@ -31,6 +32,16 @@ const uint32_t PMU_CHA_TYPE[] = {25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
 // perf_event_attr.type value for each individual imc unit found in /sys/bus/event_source/devices/uncore_imc_*/type
 const uint32_t PMU_IMC_TYPE[] = {12, 13, 14, 15, 16, 17};   // CloudLab c6420
 
+class LatencyInfoPerCore {
+  public:
+    LatencyInfoPerCore(int cpu_id);
+    ~LatencyInfoPerCore();
+    int cpu_id;
+    int fd_l1d_pend_miss;
+    int fd_retired_l3_miss;
+    uint64_t curr_count_l1d_pend_miss;
+    uint64_t curr_count_retired_l3_miss;
+};
 
 class Monitor {
   public:
@@ -78,12 +89,10 @@ class Monitor {
     std::vector<std::vector<double>> bw_write_;
 
     // for core perf measurements, ([cpu])
-    std::vector<int> fd_l1d_pend_miss_;
-    std::vector<int> fd_retired_l3_miss_;
-    std::vector<uint64_t> curr_count_l1d_pend_miss_;
-    std::vector<uint64_t> curr_count_retired_l3_miss_;
+    std::vector<LatencyInfoPerCore> lat_info_cpu_;
 
-    // TODO: vector of fd for per-thread lat measurements
+    // for per-thread lat measurements ({pid, ()})
+    //std::map<int, int> fd_map_lat_events;
 
 
 };

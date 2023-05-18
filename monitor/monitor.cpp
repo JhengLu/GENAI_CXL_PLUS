@@ -27,6 +27,17 @@ static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
     return ret;
 }
 
+LatencyInfoPerCore::LatencyInfoPerCore(int cpu_id) {
+    cpu_id = cpu_id;
+    fd_l1d_pend_miss = -1;
+    fd_retired_l3_miss = -1;
+    curr_count_l1d_pend_miss = 0;
+    curr_count_retired_l3_miss = 0;
+}
+
+LatencyInfoPerCore::~LatencyInfoPerCore() {
+}
+
 Monitor::Monitor() {
     num_sockets_ = NUM_SOCKETS;
     sampling_period_ms_ = SAMPLING_PERIOD_MS;
@@ -54,11 +65,10 @@ Monitor::Monitor() {
         std::vector<double>(pmu_imc_type_.size(), 0));
     bw_write_ = std::vector<std::vector<double>>(num_sockets_,
         std::vector<double>(pmu_imc_type_.size(), 0));
-    
-    fd_l1d_pend_miss_.resize(NUM_CORES);
-    fd_retired_l3_miss_.resize(NUM_CORES);
-    curr_count_l1d_pend_miss_ = std::vector<uint64_t>(NUM_CORES, 0);
-    curr_count_retired_l3_miss_ = std::vector<uint64_t>(NUM_CORES, 0);
+
+    for (int i = 0; i < NUM_CORES; i++) {
+        lat_info_cpu_.emplace_back(LatencyInfoPerCore(i));
+    }
 }
 
 Monitor::~Monitor() {
@@ -169,32 +179,32 @@ void Monitor::measure_uncore_latency() {
 // TODO: group multiple latency-related events together
 void Monitor::perf_event_setup_core_latency(int cpu_id) {
     int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
-    fd_l1d_pend_miss_[cpu_id] = fd;
+    lat_info_cpu_[cpu_id].fd_l1d_pend_miss = fd;
     perf_event_reset(fd);
 
     fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
-    fd_retired_l3_miss_[cpu_id] = fd;
+    lat_info_cpu_[cpu_id].fd_retired_l3_miss = fd;
     perf_event_reset(fd);
 }
 
 void Monitor::perf_event_enable_core_latency(int cpu_id) {
-    perf_event_enable(fd_l1d_pend_miss_[cpu_id]);
-    perf_event_enable(fd_retired_l3_miss_[cpu_id]);
+    perf_event_enable(lat_info_cpu_[cpu_id].fd_l1d_pend_miss);
+    perf_event_enable(lat_info_cpu_[cpu_id].fd_retired_l3_miss);
 }
 
 void Monitor::perf_event_disable_core_latency(int cpu_id) {
-    perf_event_disable(fd_l1d_pend_miss_[cpu_id]);
-    perf_event_disable(fd_retired_l3_miss_[cpu_id]);
+    perf_event_disable(lat_info_cpu_[cpu_id].fd_l1d_pend_miss);
+    perf_event_disable(lat_info_cpu_[cpu_id].fd_retired_l3_miss);
 }
 
 void Monitor::perf_event_read_core_latency(int cpu_id) {
     uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
-    read(fd_l1d_pend_miss_[cpu_id], &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
-    read(fd_retired_l3_miss_[cpu_id], &count_retired_l3_miss, sizeof(count_retired_l3_miss));
-    double latency_cycles = (double) (count_l1d_pend_miss - curr_count_l1d_pend_miss_[cpu_id])
-        / (count_retired_l3_miss - curr_count_retired_l3_miss_[cpu_id]);
-    curr_count_l1d_pend_miss_[cpu_id] = count_l1d_pend_miss;
-    curr_count_retired_l3_miss_[cpu_id] = count_retired_l3_miss;
+    read(lat_info_cpu_[cpu_id].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
+    read(lat_info_cpu_[cpu_id].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
+    double latency_cycles = (double) (count_l1d_pend_miss - lat_info_cpu_[cpu_id].curr_count_l1d_pend_miss)
+        / (count_retired_l3_miss - lat_info_cpu_[cpu_id].curr_count_retired_l3_miss);
+    lat_info_cpu_[cpu_id].curr_count_l1d_pend_miss = count_l1d_pend_miss;
+    lat_info_cpu_[cpu_id].curr_count_retired_l3_miss = count_retired_l3_miss;
     double latency_ns = latency_cycles / PROCESSOR_GHZ;
     std::cout << "cpu[" << cpu_id << "]: latency = " << latency_ns << " ns" << std::endl;
 }
