@@ -28,32 +28,32 @@ static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
 }
 
 Monitor::Monitor() {
-    _num_sockets = NUM_SOCKETS;
-    _sampling_period_ms = SAMPLING_PERIOD_MS;
-    _ewma_alpha = EWMA_ALPHA;
+    num_sockets_ = NUM_SOCKETS;
+    sampling_period_ms_ = SAMPLING_PERIOD_MS;
+    ewma_alpha_ = EWMA_ALPHA;
     for (const auto &x : PMU_CHA_TYPE) {
-        _pmu_cha_type.push_back(x);
+        pmu_cha_type_.push_back(x);
     }
     for (const auto &x : PMU_IMC_TYPE) {
-        _pmu_imc_type.push_back(x);
+        pmu_imc_type_.push_back(x);
     }
-    _fd_rxc_occ.resize(NUM_SOCKETS);
-    _fd_rxc_ins.resize(NUM_SOCKETS);
-    _fd_cas_rd.resize(NUM_SOCKETS);
-    _fd_cas_wr.resize(NUM_SOCKETS);
-    _fd_cas_all.resize(NUM_SOCKETS);
-    _curr_count_occ = std::vector<std::vector<uint64_t>>(_num_sockets,
-        std::vector<uint64_t>(_pmu_cha_type.size(), 0));
-    _curr_count_ins = std::vector<std::vector<uint64_t>>(_num_sockets,
-        std::vector<uint64_t>(_pmu_cha_type.size(), 0));
-    _curr_count_rd = std::vector<std::vector<uint64_t>>(_num_sockets,
-        std::vector<uint64_t>(_pmu_imc_type.size(), 0));
-    _curr_count_wr = std::vector<std::vector<uint64_t>>(_num_sockets,
-        std::vector<uint64_t>(_pmu_imc_type.size(), 0));
-    _bw_read = std::vector<std::vector<double>>(_num_sockets,
-        std::vector<double>(_pmu_imc_type.size(), 0));
-    _bw_write = std::vector<std::vector<double>>(_num_sockets,
-        std::vector<double>(_pmu_imc_type.size(), 0));
+    fd_rxc_occ_.resize(NUM_SOCKETS);
+    fd_rxc_ins_.resize(NUM_SOCKETS);
+    fd_cas_rd_.resize(NUM_SOCKETS);
+    fd_cas_wr_.resize(NUM_SOCKETS);
+    fd_cas_all_.resize(NUM_SOCKETS);
+    curr_count_occ_ = std::vector<std::vector<uint64_t>>(num_sockets_,
+        std::vector<uint64_t>(pmu_cha_type_.size(), 0));
+    curr_count_ins_ = std::vector<std::vector<uint64_t>>(num_sockets_,
+        std::vector<uint64_t>(pmu_cha_type_.size(), 0));
+    curr_count_rd_ = std::vector<std::vector<uint64_t>>(num_sockets_,
+        std::vector<uint64_t>(pmu_imc_type_.size(), 0));
+    curr_count_wr_ = std::vector<std::vector<uint64_t>>(num_sockets_,
+        std::vector<uint64_t>(pmu_imc_type_.size(), 0));
+    bw_read_ = std::vector<std::vector<double>>(num_sockets_,
+        std::vector<double>(pmu_imc_type_.size(), 0));
+    bw_write_ = std::vector<std::vector<double>>(num_sockets_,
+        std::vector<double>(pmu_imc_type_.size(), 0));
 }
 
 Monitor::~Monitor() {
@@ -103,21 +103,21 @@ int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uin
 
 double Monitor::sleep_ms(int time) {
     auto start = std::chrono::high_resolution_clock::now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(_sampling_period_ms));
+    std::this_thread::sleep_for(std::chrono::milliseconds(sampling_period_ms_));
     std::chrono::duration<double, std::milli> elapsed = std::chrono::high_resolution_clock::now() - start;
     return elapsed.count();
 }
 
 void Monitor::measure_latency() {
     // setup fd for each event on each PMU per socket
-    for (int i = 0; i < _num_sockets; i++) {
-        for (int j = 0; j < _pmu_cha_type.size(); j++) {
-            int fd = perf_event_setup(-1, i, -1, _pmu_cha_type[j], EVENT_RxC_OCCUPANCY_IRQ);
-            _fd_rxc_occ[i].push_back(fd);
+    for (int i = 0; i < num_sockets_; i++) {
+        for (int j = 0; j < pmu_cha_type_.size(); j++) {
+            int fd = perf_event_setup(-1, i, -1, pmu_cha_type_[j], EVENT_RxC_OCCUPANCY_IRQ);
+            fd_rxc_occ_[i].push_back(fd);
             perf_event_reset(fd);
 
-            fd = perf_event_setup(-1, i, -1, _pmu_cha_type[j], EVENT_RxC_INSERTS_IRQ);
-            _fd_rxc_ins[i].push_back(fd);
+            fd = perf_event_setup(-1, i, -1, pmu_cha_type_[j], EVENT_RxC_INSERTS_IRQ);
+            fd_rxc_ins_[i].push_back(fd);
             perf_event_reset(fd);
         }
     }
@@ -125,30 +125,30 @@ void Monitor::measure_latency() {
     // monitor all PMUs
     //std::vector<uint64_t> count_sum(2, 0);
     while (true) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_cha_type.size(); j++) {
-                perf_event_enable(_fd_rxc_occ[i][j]);
-                perf_event_enable(_fd_rxc_ins[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_cha_type_.size(); j++) {
+                perf_event_enable(fd_rxc_occ_[i][j]);
+                perf_event_enable(fd_rxc_ins_[i][j]);
             }
         }
 
-        sleep_ms(_sampling_period_ms);
+        sleep_ms(sampling_period_ms_);
 
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_cha_type.size(); j++) {
-                perf_event_disable(_fd_rxc_occ[i][j]);
-                perf_event_disable(_fd_rxc_ins[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_cha_type_.size(); j++) {
+                perf_event_disable(fd_rxc_occ_[i][j]);
+                perf_event_disable(fd_rxc_ins_[i][j]);
             }
         }
 
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_cha_type.size(); j++) {
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_cha_type_.size(); j++) {
                 uint64_t count_occ = 0, count_ins = 0;     // TODO: need to construct a custom struct when we specify more read format later
-                read(_fd_rxc_occ[i][j], &count_occ, sizeof(count_occ));
-                read(_fd_rxc_ins[i][j], &count_ins, sizeof(count_ins));
-                double latency_cycles = (double) (count_occ - _curr_count_occ[i][j]) / (count_ins - _curr_count_ins[i][j]);
-                _curr_count_occ[i][j] = count_occ;
-                _curr_count_ins[i][j] = count_ins;
+                read(fd_rxc_occ_[i][j], &count_occ, sizeof(count_occ));
+                read(fd_rxc_ins_[i][j], &count_ins, sizeof(count_ins));
+                double latency_cycles = (double) (count_occ - curr_count_occ_[i][j]) / (count_ins - curr_count_ins_[i][j]);
+                curr_count_occ_[i][j] = count_occ;
+                curr_count_ins_[i][j] = count_ins;
                 double latency_ns = latency_cycles / PROCESSOR_GHZ;
 
                 std::cout << "socket[" << i << "]: cha" << j << "  \tRxC_OCCUPANCY.IRQ = " << count_occ
@@ -164,29 +164,29 @@ void Monitor::measure_latency() {
 // opcode - 0: read, 1: write, 2: both
 void Monitor::perf_event_setup_mem_bw(int opcode) {
     if (opcode == 0) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                int fd = perf_event_setup(-1, i, -1, _pmu_imc_type[j], EVENT_CAS_COUNT_RD);
-                _fd_cas_rd[i].push_back(fd);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                int fd = perf_event_setup(-1, i, -1, pmu_imc_type_[j], EVENT_CAS_COUNT_RD);
+                fd_cas_rd_[i].push_back(fd);
                 perf_event_reset(fd);
             }
         }
     } else if (opcode == 1) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                int fd = perf_event_setup(-1, i, -1, _pmu_imc_type[j], EVENT_CAS_COUNT_WR);
-                _fd_cas_wr[i].push_back(fd);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                int fd = perf_event_setup(-1, i, -1, pmu_imc_type_[j], EVENT_CAS_COUNT_WR);
+                fd_cas_wr_[i].push_back(fd);
                 perf_event_reset(fd);
             }
         }
     } else if (opcode == 2) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                int fd = perf_event_setup(-1, i, -1, _pmu_imc_type[j], EVENT_CAS_COUNT_RD);
-                _fd_cas_rd[i].push_back(fd);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                int fd = perf_event_setup(-1, i, -1, pmu_imc_type_[j], EVENT_CAS_COUNT_RD);
+                fd_cas_rd_[i].push_back(fd);
                 perf_event_reset(fd);
-                fd = perf_event_setup(-1, i, -1, _pmu_imc_type[j], EVENT_CAS_COUNT_WR);
-                _fd_cas_wr[i].push_back(fd);
+                fd = perf_event_setup(-1, i, -1, pmu_imc_type_[j], EVENT_CAS_COUNT_WR);
+                fd_cas_wr_[i].push_back(fd);
                 perf_event_reset(fd);
             }
         }
@@ -198,22 +198,22 @@ void Monitor::perf_event_setup_mem_bw(int opcode) {
 // opcode - 0: read, 1: write, 2: both
 void Monitor::perf_event_enable_mem_bw(int opcode) {
     if (opcode == 0) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_enable(_fd_cas_rd[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_enable(fd_cas_rd_[i][j]);
             }
         }
     } else if (opcode == 1) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_enable(_fd_cas_wr[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_enable(fd_cas_wr_[i][j]);
             }
         }
     } else if (opcode == 2) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_enable(_fd_cas_rd[i][j]);
-                perf_event_enable(_fd_cas_wr[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_enable(fd_cas_rd_[i][j]);
+                perf_event_enable(fd_cas_wr_[i][j]);
             }
         }
     } else {
@@ -224,22 +224,22 @@ void Monitor::perf_event_enable_mem_bw(int opcode) {
 // opcode - 0: read, 1: write, 2: both
 void Monitor::perf_event_disable_mem_bw(int opcode) {
     if (opcode == 0) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_disable(_fd_cas_rd[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_disable(fd_cas_rd_[i][j]);
             }
         }
     } else if (opcode == 1) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_disable(_fd_cas_wr[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_disable(fd_cas_wr_[i][j]);
             }
         }
     } else if (opcode == 2) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
-                perf_event_disable(_fd_cas_rd[i][j]);
-                perf_event_disable(_fd_cas_wr[i][j]);
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
+                perf_event_disable(fd_cas_rd_[i][j]);
+                perf_event_disable(fd_cas_wr_[i][j]);
             }
         }
     } else {
@@ -250,46 +250,46 @@ void Monitor::perf_event_disable_mem_bw(int opcode) {
 // opcode - 0: read, 1: write, 2: both
 void Monitor::perf_event_read_mem_bw(int opcode, double elapsed_ms) {
     if (opcode == 0) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
                 uint64_t count_rd = 0;     // TODO: need to construct a custom struct when we specify more read format later
-                read(_fd_cas_rd[i][j], &count_rd, sizeof(count_rd));
-                double curr_bw_rd = (count_rd - _curr_count_rd[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
-                _curr_count_rd[i][j] = count_rd;
-                _bw_read[i][j] = _ewma_alpha * curr_bw_rd + (1 - _ewma_alpha) * _bw_read[i][j];
-                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_read = " << _bw_read[i][j] << " MBps" << std::endl;
+                read(fd_cas_rd_[i][j], &count_rd, sizeof(count_rd));
+                double curr_bw_rd = (count_rd - curr_count_rd_[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+                curr_count_rd_[i][j] = count_rd;
+                bw_read_[i][j] = ewma_alpha_ * curr_bw_rd + (1 - ewma_alpha_) * bw_read_[i][j];
+                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_read = " << bw_read_[i][j] << " MBps" << std::endl;
             }
         }
         std::cout << std::endl;
     } else if (opcode == 1) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
                 uint64_t count_wr = 0;     // TODO: need to construct a custom struct when we specify more read format later
-                read(_fd_cas_wr[i][j], &count_wr, sizeof(count_wr));
-                double curr_bw_wr = (count_wr - _curr_count_wr[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
-                _curr_count_wr[i][j] = count_wr;
-                _bw_write[i][j] = _ewma_alpha * curr_bw_wr + (1 - _ewma_alpha) * _bw_write[i][j];
+                read(fd_cas_wr_[i][j], &count_wr, sizeof(count_wr));
+                double curr_bw_wr = (count_wr - curr_count_wr_[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+                curr_count_wr_[i][j] = count_wr;
+                bw_write_[i][j] = ewma_alpha_ * curr_bw_wr + (1 - ewma_alpha_) * bw_write_[i][j];
 
-                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_write = " << _bw_write[i][j] << " MBps" << std::endl;
+                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_write = " << bw_write_[i][j] << " MBps" << std::endl;
             }
         }
         std::cout << std::endl;
     } else if (opcode == 2) {
-        for (int i = 0; i < _num_sockets; i++) {
-            for (int j = 0; j < _pmu_imc_type.size(); j++) {
+        for (int i = 0; i < num_sockets_; i++) {
+            for (int j = 0; j < pmu_imc_type_.size(); j++) {
                 uint64_t count_rd = 0, count_wr = 0, count_all = 0;     // TODO: need to construct a custom struct when we specify more read format later
-                read(_fd_cas_rd[i][j], &count_rd, sizeof(count_rd));
-                double curr_bw_rd = (count_rd - _curr_count_rd[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
-                _curr_count_rd[i][j] = count_rd;
-                _bw_read[i][j] = _ewma_alpha * curr_bw_rd + (1 - _ewma_alpha) * _bw_read[i][j];
+                read(fd_cas_rd_[i][j], &count_rd, sizeof(count_rd));
+                double curr_bw_rd = (count_rd - curr_count_rd_[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+                curr_count_rd_[i][j] = count_rd;
+                bw_read_[i][j] = ewma_alpha_ * curr_bw_rd + (1 - ewma_alpha_) * bw_read_[i][j];
 
-                read(_fd_cas_wr[i][j], &count_wr, sizeof(count_wr));
-                double curr_bw_wr = (count_wr - _curr_count_wr[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
-                _curr_count_wr[i][j] = count_wr;
-                _bw_write[i][j] = _ewma_alpha * curr_bw_wr + (1 - _ewma_alpha) * _bw_write[i][j];
+                read(fd_cas_wr_[i][j], &count_wr, sizeof(count_wr));
+                double curr_bw_wr = (count_wr - curr_count_wr_[i][j]) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+                curr_count_wr_[i][j] = count_wr;
+                bw_write_[i][j] = ewma_alpha_ * curr_bw_wr + (1 - ewma_alpha_) * bw_write_[i][j];
 
-                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_read = " << _bw_read[i][j]
-                    << "MBps, BW_write = " << _bw_write[i][j] << "MBps, BW_all = " << _bw_read[i][j] + _bw_write[i][j] << " MBps" << std::endl;
+                std::cout << "socket[" << i << "]: imc" << j << "  \t BW_read = " << bw_read_[i][j]
+                    << "MBps, BW_write = " << bw_write_[i][j] << "MBps, BW_all = " << bw_read_[i][j] + bw_write_[i][j] << " MBps" << std::endl;
             }
         }
         std::cout << std::endl;
@@ -307,7 +307,7 @@ void Monitor::measure_bandwidth(int opcode) {
     while (true) {
         perf_event_enable_mem_bw(opcode);
 
-        double elapsed = sleep_ms(_sampling_period_ms);
+        double elapsed = sleep_ms(sampling_period_ms_);
 
         perf_event_disable_mem_bw(opcode);
         perf_event_read_mem_bw(opcode, elapsed);

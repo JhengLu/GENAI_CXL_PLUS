@@ -9,7 +9,7 @@
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 #define EVENT_CAS_COUNT_RD 0x0304UL
 #define EVENT_CAS_COUNT_WR 0x0201UL
-#define EVENT_CAS_COUNT_ALL 0x0F04UL
+//#define EVENT_CAS_COUNT_ALL 0x0F04UL
 
 
 #define PAGE_SIZE 4096UL
@@ -51,23 +51,23 @@ class Monitor {
     void measure_bandwidth_all();
 
   private:
-    uint32_t _num_sockets;
-    int _sampling_period_ms;
-    double _ewma_alpha;
-    std::vector<uint32_t> _pmu_cha_type;
-    std::vector<uint32_t> _pmu_imc_type;
+    uint32_t num_sockets_;
+    int sampling_period_ms_;
+    double ewma_alpha_;
+    std::vector<uint32_t> pmu_cha_type_;
+    std::vector<uint32_t> pmu_imc_type_;
     // file_descriptor[socket][cha]
-    std::vector<std::vector<int>> _fd_rxc_occ;
-    std::vector<std::vector<int>> _fd_rxc_ins;
-    std::vector<std::vector<int>> _fd_cas_rd;
-    std::vector<std::vector<int>> _fd_cas_wr;
-    std::vector<std::vector<int>> _fd_cas_all;
-    std::vector<std::vector<uint64_t>> _curr_count_occ;
-    std::vector<std::vector<uint64_t>> _curr_count_ins;
-    std::vector<std::vector<uint64_t>> _curr_count_rd;
-    std::vector<std::vector<uint64_t>> _curr_count_wr;
-    std::vector<std::vector<double>> _bw_read;
-    std::vector<std::vector<double>> _bw_write;
+    std::vector<std::vector<int>> fd_rxc_occ_;
+    std::vector<std::vector<int>> fd_rxc_ins_;
+    std::vector<std::vector<int>> fd_cas_rd_;
+    std::vector<std::vector<int>> fd_cas_wr_;
+    std::vector<std::vector<int>> fd_cas_all_;
+    std::vector<std::vector<uint64_t>> curr_count_occ_;
+    std::vector<std::vector<uint64_t>> curr_count_ins_;
+    std::vector<std::vector<uint64_t>> curr_count_rd_;
+    std::vector<std::vector<uint64_t>> curr_count_wr_;
+    std::vector<std::vector<double>> bw_read_;
+    std::vector<std::vector<double>> bw_write_;
 
 };
 
