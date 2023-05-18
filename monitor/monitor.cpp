@@ -54,6 +54,11 @@ Monitor::Monitor() {
         std::vector<double>(pmu_imc_type_.size(), 0));
     bw_write_ = std::vector<std::vector<double>>(num_sockets_,
         std::vector<double>(pmu_imc_type_.size(), 0));
+    
+    fd_l1d_pend_miss_.resize(NUM_CORES);
+    fd_retired_l3_miss_.resize(NUM_CORES);
+    curr_count_l1d_pend_miss_ = std::vector<uint64_t>(NUM_CORES, 0);
+    curr_count_retired_l3_miss_ = std::vector<uint64_t>(NUM_CORES, 0);
 }
 
 Monitor::~Monitor() {
@@ -108,7 +113,7 @@ double Monitor::sleep_ms(int time) {
     return elapsed.count();
 }
 
-void Monitor::measure_latency() {
+void Monitor::measure_uncore_latency() {
     // setup fd for each event on each PMU per socket
     for (int i = 0; i < num_sockets_; i++) {
         for (int j = 0; j < pmu_cha_type_.size(); j++) {
@@ -158,6 +163,51 @@ void Monitor::measure_latency() {
             //std::cout << "socket[" << i << "]: total count = " << count_sum[i] << std::endl;
         }
         std::cout << std::endl;
+    }
+}
+
+// TODO: group multiple latency-related events together
+void Monitor::perf_event_setup_core_latency(int cpu_id) {
+    int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
+    fd_l1d_pend_miss_[cpu_id] = fd;
+    perf_event_reset(fd);
+
+    fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
+    fd_retired_l3_miss_[cpu_id] = fd;
+    perf_event_reset(fd);
+}
+
+void Monitor::perf_event_enable_core_latency(int cpu_id) {
+    perf_event_enable(fd_l1d_pend_miss_[cpu_id]);
+    perf_event_enable(fd_retired_l3_miss_[cpu_id]);
+}
+
+void Monitor::perf_event_disable_core_latency(int cpu_id) {
+    perf_event_disable(fd_l1d_pend_miss_[cpu_id]);
+    perf_event_disable(fd_retired_l3_miss_[cpu_id]);
+}
+
+void Monitor::perf_event_read_core_latency(int cpu_id) {
+    uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
+    read(fd_l1d_pend_miss_[cpu_id], &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
+    read(fd_retired_l3_miss_[cpu_id], &count_retired_l3_miss, sizeof(count_retired_l3_miss));
+    double latency_cycles = (double) (count_l1d_pend_miss - curr_count_l1d_pend_miss_[cpu_id])
+        / (count_retired_l3_miss - curr_count_retired_l3_miss_[cpu_id]);
+    curr_count_l1d_pend_miss_[cpu_id] = count_l1d_pend_miss;
+    curr_count_retired_l3_miss_[cpu_id] = count_retired_l3_miss;
+    double latency_ns = latency_cycles / PROCESSOR_GHZ;
+    std::cout << "cpu[" << cpu_id << "]: latency = " << latency_ns << " ns" << std::endl;
+}
+
+void Monitor::measure_core_latency(int cpu_id) {
+    perf_event_setup_core_latency(cpu_id);
+    while (true) {
+        perf_event_enable_core_latency(cpu_id);
+
+        sleep_ms(sampling_period_ms_);
+
+        perf_event_disable_core_latency(cpu_id);
+        perf_event_read_core_latency(cpu_id);
     }
 }
 
@@ -328,6 +378,7 @@ void Monitor::measure_bandwidth_all() {
 
 int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
-    monitor.measure_latency();
+    //monitor.measure_latency();
     //monitor.measure_bandwidth_all();
+    monitor.measure_core_latency(0);
 }
