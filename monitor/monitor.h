@@ -76,14 +76,14 @@ class Monitor {
     void perf_event_disable_process_latency(int pid);
     void perf_event_read_process_latency(int pid);
     void measure_process_latency(int pid);
-    void perf_event_setup_mem_bw(int opcode);
-    void perf_event_enable_mem_bw(int opcode);
-    void perf_event_disable_mem_bw(int opcode);
-    void perf_event_read_mem_bw(int opcode, double elapsed);
-    void measure_bandwidth(int opcode);
-    void measure_bandwidth_read();
-    void measure_bandwidth_write();
-    void measure_bandwidth_all();
+    void perf_event_setup_uncore_mem_bw(int opcode);
+    void perf_event_enable_uncore_mem_bw(int opcode);
+    void perf_event_disable_uncore_mem_bw(int opcode);
+    void perf_event_read_uncore_mem_bw(int opcode, double elapsed);
+    void measure_uncore_bandwidth(int opcode);
+    void measure_uncore_bandwidth_read();
+    void measure_uncore_bandwidth_write();
+    void measure_uncore_bandwidth_all();
 
   private:
     uint32_t num_sockets_;

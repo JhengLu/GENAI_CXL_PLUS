@@ -288,7 +288,7 @@ void Monitor::measure_process_latency(int pid) {
 }
 
 // opcode - 0: read, 1: write, 2: both
-void Monitor::perf_event_setup_mem_bw(int opcode) {
+void Monitor::perf_event_setup_uncore_mem_bw(int opcode) {
     if (opcode == 0) {
         for (int i = 0; i < num_sockets_; i++) {
             for (int j = 0; j < pmu_imc_type_.size(); j++) {
@@ -322,7 +322,7 @@ void Monitor::perf_event_setup_mem_bw(int opcode) {
 }
 
 // opcode - 0: read, 1: write, 2: both
-void Monitor::perf_event_enable_mem_bw(int opcode) {
+void Monitor::perf_event_enable_uncore_mem_bw(int opcode) {
     if (opcode == 0) {
         for (int i = 0; i < num_sockets_; i++) {
             for (int j = 0; j < pmu_imc_type_.size(); j++) {
@@ -348,7 +348,7 @@ void Monitor::perf_event_enable_mem_bw(int opcode) {
 }
 
 // opcode - 0: read, 1: write, 2: both
-void Monitor::perf_event_disable_mem_bw(int opcode) {
+void Monitor::perf_event_disable_uncore_mem_bw(int opcode) {
     if (opcode == 0) {
         for (int i = 0; i < num_sockets_; i++) {
             for (int j = 0; j < pmu_imc_type_.size(); j++) {
@@ -374,7 +374,7 @@ void Monitor::perf_event_disable_mem_bw(int opcode) {
 }
 
 // opcode - 0: read, 1: write, 2: both
-void Monitor::perf_event_read_mem_bw(int opcode, double elapsed_ms) {
+void Monitor::perf_event_read_uncore_mem_bw(int opcode, double elapsed_ms) {
     if (opcode == 0) {
         for (int i = 0; i < num_sockets_; i++) {
             for (int j = 0; j < pmu_imc_type_.size(); j++) {
@@ -425,38 +425,38 @@ void Monitor::perf_event_read_mem_bw(int opcode, double elapsed_ms) {
 }
 
 // opcode - 0: read, 1: write, 2: both
-void Monitor::measure_bandwidth(int opcode) {
+void Monitor::measure_uncore_bandwidth(int opcode) {
     // setup fd for each event on each PMU per socket
-    perf_event_setup_mem_bw(opcode);
+    perf_event_setup_uncore_mem_bw(opcode);
 
     // monitor all PMUs
     while (true) {
-        perf_event_enable_mem_bw(opcode);
+        perf_event_enable_uncore_mem_bw(opcode);
 
         double elapsed = sleep_ms(sampling_period_ms_);
 
-        perf_event_disable_mem_bw(opcode);
-        perf_event_read_mem_bw(opcode, elapsed);
+        perf_event_disable_uncore_mem_bw(opcode);
+        perf_event_read_uncore_mem_bw(opcode, elapsed);
     }
 }
 
-void Monitor::measure_bandwidth_read() {
-    measure_bandwidth(0);
+void Monitor::measure_uncore_bandwidth_read() {
+    measure_uncore_bandwidth(0);
 }
 
-void Monitor::measure_bandwidth_write() {
-    measure_bandwidth(1);
+void Monitor::measure_uncore_bandwidth_write() {
+    measure_uncore_bandwidth(1);
 }
 
-void Monitor::measure_bandwidth_all() {
-    measure_bandwidth(2);
+void Monitor::measure_uncore_bandwidth_all() {
+    measure_uncore_bandwidth(2);
 }
 
 int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
-    //monitor.measure_latency();
-    //monitor.measure_bandwidth_all();
+    //monitor.measure_uncore_latency();
+    monitor.measure_uncore_bandwidth_all();
     //monitor.measure_core_latency(0);
-    int pid = atoi(argv[1]);
-    monitor.measure_process_latency(pid);
+    //int pid = atoi(argv[1]);
+    //monitor.measure_process_latency(pid);
 }
