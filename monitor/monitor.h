@@ -13,6 +13,7 @@
 #define EVENT_L1D_PEND_MISS_PENDING 0x0148UL
 #define EVENT_MEM_LOAD_RETIRED_L1_MISS 0x08D1UL
 #define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
+#define EVENT_OFFCORE_REQUESTS_ALL_REQUESTS 0x80B0
 
 #define PAGE_SIZE 4096UL
 #define NUM_PERF_EVENT_MMAP_PAGES 64UL      // NOTE: might consider increase this value later on
@@ -55,6 +56,16 @@ class LatencyInfoPerProcess {
     uint64_t curr_count_retired_l3_miss;
 };
 
+class BWInfoPerCore {
+  public:
+    BWInfoPerCore(int cpu_id);
+    ~BWInfoPerCore();
+    int cpu_id;
+    int fd_offcore_all_reqs;
+    uint64_t curr_count_offcore_all_reqs;
+    double curr_bw;
+};
+
 class Monitor {
   public:
     Monitor();
@@ -84,6 +95,11 @@ class Monitor {
     void measure_uncore_bandwidth_read();
     void measure_uncore_bandwidth_write();
     void measure_uncore_bandwidth_all();
+    void perf_event_setup_offcore_mem_bw(int cpu_id);
+    void perf_event_enable_offcore_mem_bw(int cpu_id);
+    void perf_event_disable_offcore_mem_bw(int cpu_id);
+    void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
+    void measure_offcore_bandwidth(int cpu_id);
 
   private:
     uint32_t num_sockets_;
@@ -105,12 +121,14 @@ class Monitor {
     std::vector<std::vector<double>> bw_read_;
     std::vector<std::vector<double>> bw_write_;
 
-    // for core perf measurements, ([cpu])
+    // for core lat measurements ([cpu])
     std::vector<LatencyInfoPerCore> lat_info_cpu_;
 
     // for per-thread lat measurements ({pid, ()})
     std::map<int, LatencyInfoPerProcess> lat_info_process_;
 
+    // for offcore bw measurements ([cpu])
+    std::vector<BWInfoPerCore> bw_info_cpu_;
 
 };
 

@@ -57,6 +57,16 @@ LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
 LatencyInfoPerProcess::~LatencyInfoPerProcess() {
 }
 
+BWInfoPerCore::BWInfoPerCore(int cpu_id) {
+    cpu_id = cpu_id;
+    fd_offcore_all_reqs = -1;
+    curr_count_offcore_all_reqs = 0;
+    curr_bw = 0;
+}
+
+BWInfoPerCore::~BWInfoPerCore() {
+}
+
 Monitor::Monitor() {
     num_sockets_ = NUM_SOCKETS;
     sampling_period_ms_ = SAMPLING_PERIOD_MS;
@@ -87,6 +97,10 @@ Monitor::Monitor() {
 
     for (int i = 0; i < NUM_CORES; i++) {
         lat_info_cpu_.emplace_back(LatencyInfoPerCore(i));
+    }
+
+    for (int i = 0; i < NUM_CORES; i++) {
+        bw_info_cpu_.emplace_back(BWInfoPerCore(i));
     }
 }
 
@@ -277,6 +291,7 @@ void Monitor::perf_event_read_process_latency(int pid) {
 
 void Monitor::measure_process_latency(int pid) {
     perf_event_setup_process_latency(pid);
+
     while (true) {
         perf_event_enable_process_latency(pid);
 
@@ -452,11 +467,49 @@ void Monitor::measure_uncore_bandwidth_all() {
     measure_uncore_bandwidth(2);
 }
 
+void Monitor::perf_event_setup_offcore_mem_bw(int cpu_id) {
+    int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_OFFCORE_REQUESTS_ALL_REQUESTS);
+    bw_info_cpu_[cpu_id].fd_offcore_all_reqs = fd;
+    perf_event_reset(fd);
+}
+
+void Monitor::perf_event_enable_offcore_mem_bw(int cpu_id) {
+    perf_event_enable(bw_info_cpu_[cpu_id].fd_offcore_all_reqs);
+}
+
+void Monitor::perf_event_disable_offcore_mem_bw(int cpu_id) {
+    perf_event_disable(bw_info_cpu_[cpu_id].fd_offcore_all_reqs);
+}
+
+void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
+    uint64_t count_bw = 0;     // TODO: need to construct a custom struct when we specify more read format later
+    BWInfoPerCore *info = &bw_info_cpu_[cpu_id];
+    read(info->fd_offcore_all_reqs, &count_bw, sizeof(count_bw));
+    double curr_bw = (count_bw - info->curr_count_offcore_all_reqs) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+    info->curr_count_offcore_all_reqs = count_bw;
+    info->curr_bw = ewma_alpha_ * curr_bw + (1 - ewma_alpha_) * info->curr_bw;
+    std::cout << "cpu[" << cpu_id << "]: memory BW = " << info->curr_bw << " MBps" << std::endl;
+}
+
+void Monitor::measure_offcore_bandwidth(int cpu_id) {
+    perf_event_setup_offcore_mem_bw(cpu_id);
+
+    while (true) {
+        perf_event_enable_offcore_mem_bw(cpu_id);
+
+        double elapsed = sleep_ms(sampling_period_ms_);
+
+        perf_event_disable_offcore_mem_bw(cpu_id);
+        perf_event_read_offcore_mem_bw(cpu_id, elapsed);
+    }
+}
+
 int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
     //monitor.measure_uncore_latency();
-    monitor.measure_uncore_bandwidth_all();
+    //monitor.measure_uncore_bandwidth_all();
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
+    monitor.measure_offcore_bandwidth(0);
 }
