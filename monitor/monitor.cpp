@@ -19,6 +19,7 @@
 // (2) Do not enable perf_event_attr.exclude_kernel
 // (3) In the hardware I use, I need to set precise_ip = 0 (i.e., PEBS won't work).
 //     Newer hardware may support PEBS for uncore monitoring.
+// (4) uncore monitoring is per-socket (i.e., no per-core or per-process monitoring)
 
 static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
                             int cpu, int group_fd, unsigned long flags) {
@@ -67,9 +68,20 @@ BWInfoPerCore::BWInfoPerCore(int cpu_id) {
 BWInfoPerCore::~BWInfoPerCore() {
 }
 
+PageTempInfoPerCore::PageTempInfoPerCore(int cpu_id, int num_events) {
+    cpu_id = cpu_id;
+    fds.resize(num_events, -1);
+    perf_m_pages.resize(num_events, NULL);
+}
+
+// TODO: consider calling munmap for perf pages
+PageTempInfoPerCore::~PageTempInfoPerCore() {
+}
+
 Monitor::Monitor() {
     num_sockets_ = NUM_SOCKETS;
     sampling_period_ms_ = SAMPLING_PERIOD_MS;
+    sampling_period_event_ = SAMPLING_PERIOD_EVENT;
     ewma_alpha_ = EWMA_ALPHA;
     for (const auto &x : PMU_CHA_TYPE) {
         pmu_cha_type_.push_back(x);
@@ -102,6 +114,12 @@ Monitor::Monitor() {
     for (int i = 0; i < NUM_CORES; i++) {
         bw_info_cpu_.emplace_back(BWInfoPerCore(i));
     }
+
+    page_temp_events_ = {EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM, EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM};
+    for (int i = 0; i < NUM_CORES; i++) {
+        page_temp_info_.emplace_back(PageTempInfoPerCore(i, page_temp_events_.size()));
+    }
+
 }
 
 Monitor::~Monitor() {
@@ -131,16 +149,12 @@ void Monitor::perf_event_disable(int fd) {
 //int perf_event_setup(int cpu, int pid, int group_fd, int sampling_period) {
 int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
     struct perf_event_attr event_attr;
-	memset(&event_attr, 0, sizeof(event_attr));
-	////event_attr.type = PERF_TYPE_RAW;
-	event_attr.type = type;
-	event_attr.size = sizeof(event_attr);
-	event_attr.config = event_id;
-	//event_attr.sample_period = sampling_period;
-	//event_attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_ADDR;
-	event_attr.disabled = 1;
-	//event_attr.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
-	event_attr.precise_ip = 0;
+    memset(&event_attr, 0, sizeof(event_attr));
+    event_attr.type = type;
+    event_attr.size = sizeof(event_attr);
+    event_attr.config = event_id;
+    event_attr.disabled = 1;
+    event_attr.precise_ip = 0;
 
     int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
     if (ret < 0) {
@@ -172,7 +186,7 @@ void Monitor::measure_uncore_latency() {
 
     // monitor all PMUs
     //std::vector<uint64_t> count_sum(2, 0);
-    while (true) {
+    for (;;) {
         for (int i = 0; i < num_sockets_; i++) {
             for (int j = 0; j < pmu_cha_type_.size(); j++) {
                 perf_event_enable(fd_rxc_occ_[i][j]);
@@ -244,7 +258,7 @@ void Monitor::perf_event_read_core_latency(int cpu_id) {
 
 void Monitor::measure_core_latency(int cpu_id) {
     perf_event_setup_core_latency(cpu_id);
-    while (true) {
+    for (;;) {
         perf_event_enable_core_latency(cpu_id);
 
         sleep_ms(sampling_period_ms_);
@@ -292,7 +306,7 @@ void Monitor::perf_event_read_process_latency(int pid) {
 void Monitor::measure_process_latency(int pid) {
     perf_event_setup_process_latency(pid);
 
-    while (true) {
+    for (;;) {
         perf_event_enable_process_latency(pid);
 
         sleep_ms(sampling_period_ms_);
@@ -445,7 +459,7 @@ void Monitor::measure_uncore_bandwidth(int opcode) {
     perf_event_setup_uncore_mem_bw(opcode);
 
     // monitor all PMUs
-    while (true) {
+    for (;;) {
         perf_event_enable_uncore_mem_bw(opcode);
 
         double elapsed = sleep_ms(sampling_period_ms_);
@@ -494,7 +508,7 @@ void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
 void Monitor::measure_offcore_bandwidth(int cpu_id) {
     perf_event_setup_offcore_mem_bw(cpu_id);
 
-    while (true) {
+    for (;;) {
         perf_event_enable_offcore_mem_bw(cpu_id);
 
         double elapsed = sleep_ms(sampling_period_ms_);
@@ -504,6 +518,95 @@ void Monitor::measure_offcore_bandwidth(int cpu_id) {
     }
 }
 
+int Monitor::perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
+    struct perf_event_attr event_attr;
+    memset(&event_attr, 0, sizeof(event_attr));
+    event_attr.type = type;
+    event_attr.size = sizeof(event_attr);
+    event_attr.config = event_id;
+    event_attr.sample_period = sampling_period_event_;
+    event_attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_ADDR | PERF_SAMPLE_CPU;
+    event_attr.disabled = 1;
+    event_attr.exclude_kernel = 1;      // TODO: add this for other core and offcore event
+    //event_attr.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
+    event_attr.precise_ip = 2;
+
+    int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
+    if (ret < 0) {
+        std::cout << "[Error] perf_event_open: " << strerror(errno) << std::endl;
+    }
+    return ret;
+}
+
+// allocate metadata page for a sampled event
+struct perf_event_mmap_page *Monitor::perf_event_setup_mmap_page(int fd) {
+    struct perf_event_mmap_page *m_page = (struct perf_event_mmap_page *) mmap(NULL,
+        PAGE_SIZE * (NUM_PERF_EVENT_MMAP_PAGES + 1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    return m_page;
+}
+
+void Monitor::perf_event_setup_page_temp(const std::vector<int> &cores) {
+    for (const auto &c : cores) {
+        for (int i = 0; i < page_temp_events_.size(); i++) {
+            int fd = -1;
+            struct perf_event_mmap_page *m_page = NULL;
+            fd = perf_event_setup_pebs(-1, c, -1, PERF_TYPE_RAW, page_temp_events_[i]);
+            m_page = perf_event_setup_mmap_page(fd);
+            page_temp_info_[c].fds[i] = fd;
+            page_temp_info_[c].perf_m_pages[i] = m_page;
+            perf_event_reset(fd);
+        }
+    }
+}
+
+void Monitor::perf_event_enable_page_temp(const std::vector<int> &cores) {
+    for (const auto &c : cores) {
+        for (int i = 0; i < page_temp_events_.size(); i++) {
+            perf_event_enable(page_temp_info_[c].fds[i]);
+        }
+    }
+}
+
+void Monitor::sample_page_access(const std::vector<int> &cores) {
+    for (;;) {
+        for (const auto &c : cores) {
+            for (int i = 0; i < page_temp_events_.size(); i++) {
+                struct perf_event_mmap_page *p = page_temp_info_[c].perf_m_pages[i];
+                uint64_t data_head = p->data_head;
+                uint64_t data_tail = p->data_tail;
+                uint64_t data_offset = p->data_offset;
+                uint64_t data_size = p->data_size;
+
+                if (data_head == data_tail) {
+                    continue;   // wait for more samples to read
+                }
+
+                __sync_synchronize();
+
+                PerfSample *sample = (PerfSample *)((char *)p + data_offset + (data_tail % data_size));     // need manual wrapping for head & tail
+                
+                // TODO: count throttle and untrottle events if CPU throttling becomes an issue in the future
+                // For now, ignore all events except PERF_RECORD_SAMPLE
+                if (sample->header.type == PERF_RECORD_SAMPLE) {
+                    uint64_t page_addr = sample->addr & PAGE_MASK;
+                    page_access_map_[page_addr]++;
+                }
+                p->data_tail += sample->header.size;    // manually update data tail
+                std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
+            }
+        }
+    }
+}
+
+void Monitor::measure_page_temp(const std::vector<int> &cores) {
+    perf_event_setup_page_temp(cores);
+
+    perf_event_enable_page_temp(cores);
+
+    sample_page_access(cores);
+    
+}
+
 int main (int argc, char *argv[]) {
     Monitor monitor = Monitor();
     //monitor.measure_uncore_latency();
@@ -511,5 +614,7 @@ int main (int argc, char *argv[]) {
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
-    monitor.measure_offcore_bandwidth(0);
+    //monitor.measure_offcore_bandwidth(0);
+    std::vector<int> cores = {0};
+    monitor.measure_page_temp(cores);
 }

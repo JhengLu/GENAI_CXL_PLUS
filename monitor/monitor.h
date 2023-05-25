@@ -13,18 +13,24 @@
 #define EVENT_L1D_PEND_MISS_PENDING 0x0148UL
 #define EVENT_MEM_LOAD_RETIRED_L1_MISS 0x08D1UL
 #define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
+#define EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM 0x01D3UL
+#define EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM 0x02D3UL
 #define EVENT_OFFCORE_REQUESTS_ALL_REQUESTS 0x80B0
 
 #define PAGE_SIZE 4096UL
-#define NUM_PERF_EVENT_MMAP_PAGES 64UL      // NOTE: might consider increase this value later on
+#define NUM_PERF_EVENT_MMAP_PAGES 256UL
 #define SAMPLING_PERIOD_EVENT 500UL         // in # of events
 //#define SAMPLING_PERIOD_MS 50UL             // in ms
 #define SAMPLING_PERIOD_MS 500UL             // in ms
 #define EWMA_ALPHA 0.5
 
+#define PAGE_MASK ((PAGE_SIZE - 1) ^ UINT64_MAX)      // ~(PAGE_SIZE - 1)
+
 #define NUM_SOCKETS 2
 #define PROCESSOR_GHZ 2.4   // CloudLab c6420
 #define NUM_CORES 64        // CLoudLab c6420
+// TODO: make one of the core (local) exclusive for monitoring
+#define NUM_TIERS 2         // Fast and Slow
 
 // TODO: read the numbers from path
 // perf_event_attr.type value for each individual cha unit found in /sys/bus/event_source/devices/uncore_cha_*/type
@@ -66,27 +72,52 @@ class BWInfoPerCore {
     double curr_bw;
 };
 
+// https://manpages.ubuntu.com/manpages/xenial/man2/perf_event_open.2.html
+// see "PERF_RECORD_SAMPLE"
+struct PerfSample {
+    struct perf_event_header header;
+    uint32_t pid, tid;      // PERF_SAMPLE_TID
+    uint64_t addr;          // PERF_SAMPLE_ADDR
+    uint32_t cpu, res;      // PERF_SAMPLE_CPU
+};
+
+// assume 1 app can take 1 or more cores, and 1 core can't take more than 1 app
+class PageTempInfoPerCore {
+  public:
+    PageTempInfoPerCore(int cpu_id, int num_events);
+    ~PageTempInfoPerCore();
+    int cpu_id;
+    std::vector<int> fds;   // curently 2 events; fast and slow mem retired loads
+    std::vector<struct perf_event_mmap_page *> perf_m_pages;
+    // TODO: store page info
+};
+
 class Monitor {
   public:
     Monitor();
     ~Monitor();
 
+    // TODO: move most functions to private
     void perf_event_reset(int fd);
     void perf_event_enable(int fd);
     void perf_event_disable(int fd);
     int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     double sleep_ms(int time);
+
     void measure_uncore_latency();
+
     void perf_event_setup_core_latency(int cpu_id);
     void perf_event_enable_core_latency(int cpu_id);
     void perf_event_disable_core_latency(int cpu_id);
     void perf_event_read_core_latency(int cpu_id);
-    void measure_core_latency(int cpu_id);
+    void measure_core_latency(int cpu_id);          // TODO: a list of cores
+
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
     void perf_event_disable_process_latency(int pid);
     void perf_event_read_process_latency(int pid);
     void measure_process_latency(int pid);
+
     void perf_event_setup_uncore_mem_bw(int opcode);
     void perf_event_enable_uncore_mem_bw(int opcode);
     void perf_event_disable_uncore_mem_bw(int opcode);
@@ -95,15 +126,24 @@ class Monitor {
     void measure_uncore_bandwidth_read();
     void measure_uncore_bandwidth_write();
     void measure_uncore_bandwidth_all();
+
     void perf_event_setup_offcore_mem_bw(int cpu_id);
     void perf_event_enable_offcore_mem_bw(int cpu_id);
     void perf_event_disable_offcore_mem_bw(int cpu_id);
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
-    void measure_offcore_bandwidth(int cpu_id);
+    void measure_offcore_bandwidth(int cpu_id);     // TODO: a list of cores
+
+    int perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
+    struct perf_event_mmap_page *perf_event_setup_mmap_page(int fd);
+    void perf_event_setup_page_temp(const std::vector<int> &cores);
+    void perf_event_enable_page_temp(const std::vector<int> &cores);
+    void sample_page_access(const std::vector<int> &cores);
+    void measure_page_temp(const std::vector<int> &cores);
 
   private:
     uint32_t num_sockets_;
     int sampling_period_ms_;
+    int sampling_period_event_;
     double ewma_alpha_;
     std::vector<uint32_t> pmu_cha_type_;
     std::vector<uint32_t> pmu_imc_type_;
@@ -130,6 +170,11 @@ class Monitor {
     // for offcore bw measurements ([cpu])
     std::vector<BWInfoPerCore> bw_info_cpu_;
 
+    // for page temperature monitoring ([cpu])
+    std::vector<uint32_t> page_temp_events_;
+    std::vector<PageTempInfoPerCore> page_temp_info_;
+    std::map<uint64_t, uint64_t> page_access_map_;
+    // TODO: need a pid to core mapping
 };
 
 
