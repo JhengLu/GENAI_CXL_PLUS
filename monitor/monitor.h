@@ -138,6 +138,7 @@ class Monitor {
     void perf_event_setup_page_temp(const std::vector<int> &cores);
     void perf_event_enable_page_temp(const std::vector<int> &cores);
     void sample_page_access(const std::vector<int> &cores);
+    void measure_hot_page_pctg(const std::vector<int> &cores);
     void measure_page_temp(const std::vector<int> &cores);
 
   private:

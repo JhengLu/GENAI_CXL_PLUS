@@ -11,8 +11,13 @@
 #include <errno.h>
 #include <chrono>
 #include <thread>
+#include <algorithm>
+#include <signal.h>
 
 #include "monitor.h"
+
+Monitor monitor = Monitor();
+std::vector<int> cores = {0};
 
 // Takeaway (for uncore monitoring):
 // (1) For perf_event_attr.type, specify the integer value for individual PMU instead of PERF_TYPE_RAW
@@ -76,6 +81,21 @@ PageTempInfoPerCore::PageTempInfoPerCore(int cpu_id, int num_events) {
 
 // TODO: consider calling munmap for perf pages
 PageTempInfoPerCore::~PageTempInfoPerCore() {
+}
+
+template<typename A, typename B>
+std::pair<B,A> flip_pair(const std::pair<A,B> &p)
+{
+    return std::pair<B,A>(p.second, p.first);
+}
+
+template<typename A, typename B>
+std::multimap<B,A> flip_map(const std::map<A,B> &src)
+{
+    std::multimap<B,A> dst;
+    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
+                   flip_pair<A,B>);
+    return dst;
 }
 
 Monitor::Monitor() {
@@ -569,6 +589,8 @@ void Monitor::perf_event_enable_page_temp(const std::vector<int> &cores) {
 
 void Monitor::sample_page_access(const std::vector<int> &cores) {
     for (;;) {
+    ////int n = 20000;
+    ////while (n > 0) {          // for quick test purposes
         for (const auto &c : cores) {
             for (int i = 0; i < page_temp_events_.size(); i++) {
                 struct perf_event_mmap_page *p = page_temp_info_[c].perf_m_pages[i];
@@ -593,9 +615,38 @@ void Monitor::sample_page_access(const std::vector<int> &cores) {
                 }
                 p->data_tail += sample->header.size;    // manually update data tail
                 std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
+                ////n -= 1;
             }
         }
     }
+}
+
+// currently used for test purposes
+// might extend to a separate long-runing thread in the future as an actual design component
+void Monitor::measure_hot_page_pctg(const std::vector<int> &cores) {
+    std::vector<std::pair<uint64_t, uint64_t>> temp_vec(page_access_map_.begin(), page_access_map_.end());
+    std::sort(temp_vec.begin(), temp_vec.end(), [](auto &left, auto &right) {
+        return left.second < right.second;
+    });
+    
+    int num_percentile = 100;
+    int step = temp_vec.size() / num_percentile;
+    std::cout << "hot page access pdf (" << num_percentile << " pctl):" << std::endl;
+    std::cout << "[";
+    for (int i = 0; i < num_percentile; i++) {
+        uint64_t num_acc = temp_vec[step * i].second;
+        std::cout << num_acc;
+        if (i < num_percentile - 1) {
+            std::cout << ",";
+        } else {
+            std::cout << "]" << std::endl;
+        }
+        //std::cout << i << "th: \t" << num_acc << std::endl;
+    }
+
+    //std::multimap<uint64_t, uint64_t> sorted_map = flip_map(page_access_map_);
+    //for (const auto &[num_acc, addr] : sorted_map) {
+    //}
 }
 
 void Monitor::measure_page_temp(const std::vector<int> &cores) {
@@ -607,14 +658,31 @@ void Monitor::measure_page_temp(const std::vector<int> &cores) {
     
 }
 
+// for test purposes
+void signal_handler(int s) {
+    std::cout << "receive signal " << s << std::endl;
+    monitor.measure_hot_page_pctg(cores);
+    exit(1);
+}
+
 int main (int argc, char *argv[]) {
-    Monitor monitor = Monitor();
+    ////Monitor monitor = Monitor();        // moved to global to make signal handler work
+    ////std::vector<int> cores = {0};       // moved to global to make signal handler work
+
+    //// for easy test purposes
+    struct sigaction sigIntHandler;
+    sigIntHandler.sa_handler = signal_handler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = 0;
+    sigaction(SIGINT, &sigIntHandler, NULL);
+    ////
+
     //monitor.measure_uncore_latency();
     //monitor.measure_uncore_bandwidth_all();
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
     //monitor.measure_offcore_bandwidth(0);
-    std::vector<int> cores = {0};
+
     monitor.measure_page_temp(cores);
 }
