@@ -175,6 +175,8 @@ class Monitor {
     std::vector<uint32_t> page_temp_events_;
     std::vector<PageTempInfoPerCore> page_temp_info_;
     std::map<uint64_t, uint64_t> page_access_map_;
+    uint64_t num_cpu_throttle_;
+    uint64_t num_cpu_unthrottle_;
     // TODO: need a pid to core mapping
 };
 

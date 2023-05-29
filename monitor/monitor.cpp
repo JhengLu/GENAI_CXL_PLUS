@@ -103,6 +103,8 @@ Monitor::Monitor() {
     sampling_period_ms_ = SAMPLING_PERIOD_MS;
     sampling_period_event_ = SAMPLING_PERIOD_EVENT;
     ewma_alpha_ = EWMA_ALPHA;
+    num_cpu_throttle_ = 0;
+    num_cpu_unthrottle_ = 0;
     for (const auto &x : PMU_CHA_TYPE) {
         pmu_cha_type_.push_back(x);
     }
@@ -612,9 +614,17 @@ void Monitor::sample_page_access(const std::vector<int> &cores) {
                 if (sample->header.type == PERF_RECORD_SAMPLE) {
                     uint64_t page_addr = sample->addr & PAGE_MASK;
                     page_access_map_[page_addr]++;
+                } else if (sample->header.type == PERF_RECORD_THROTTLE) {
+                    num_cpu_throttle_++;
+                } else if (sample->header.type == PERF_RECORD_UNTHROTTLE) {
+                    num_cpu_unthrottle_++;
+                }
+                if (sample->cpu != 0) {
+                    std::cout << "PUPU cpu = " << sample->cpu << std::endl;
+                    exit(1);
                 }
                 p->data_tail += sample->header.size;    // manually update data tail
-                std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
+                //std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
                 ////n -= 1;
             }
         }
@@ -643,6 +653,7 @@ void Monitor::measure_hot_page_pctg(const std::vector<int> &cores) {
         }
         //std::cout << i << "th: \t" << num_acc << std::endl;
     }
+    std::cout << "num cpu throttle: " << monitor.num_cpu_throttle_ << "; num cpu untrottle: " << monitor.num_cpu_unthrottle_ << std::endl;
 
     //std::multimap<uint64_t, uint64_t> sorted_map = flip_map(page_access_map_);
     //for (const auto &[num_acc, addr] : sorted_map) {
