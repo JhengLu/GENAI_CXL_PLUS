@@ -21,16 +21,18 @@
 #define NUM_PERF_EVENT_MMAP_PAGES 256UL
 #define SAMPLING_PERIOD_EVENT 500UL         // in # of events
 //#define SAMPLING_PERIOD_MS 50UL             // in ms
-#define SAMPLING_PERIOD_MS 500UL             // in ms
+//#define SAMPLING_PERIOD_MS 500UL             // in ms
+#define SAMPLING_PERIOD_MS 1000UL             // in ms
 #define EWMA_ALPHA 0.5
 
 #define PAGE_MASK ((PAGE_SIZE - 1) ^ UINT64_MAX)      // ~(PAGE_SIZE - 1)
 
 #define NUM_SOCKETS 2
-#define PROCESSOR_GHZ 2.4   // CloudLab c6420
-#define NUM_CORES 64        // CLoudLab c6420
+#define PROCESSOR_GHZ 2.4           // CloudLab c6420
+#define NUM_CORES 64                // CloudLab c6420; include both sockets
+#define NUM_CORES_PER_SOCKET 32     // CloudLab c6420
 // TODO: make one of the core (local) exclusive for monitoring
-#define NUM_TIERS 2         // Fast and Slow
+#define NUM_TIERS 2                 // Fast and Slow
 
 // TODO: read the numbers from path
 // perf_event_attr.type value for each individual cha unit found in /sys/bus/event_source/devices/uncore_cha_*/type
@@ -131,7 +133,7 @@ class Monitor {
     void perf_event_enable_offcore_mem_bw(int cpu_id);
     void perf_event_disable_offcore_mem_bw(int cpu_id);
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
-    void measure_offcore_bandwidth(int cpu_id);     // TODO: a list of cores
+    void measure_offcore_bandwidth(const std::vector<int> &cores);
 
     int perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     struct perf_event_mmap_page *perf_event_setup_mmap_page(int fd);

@@ -17,7 +17,7 @@
 #include "monitor.h"
 
 Monitor monitor = Monitor();
-std::vector<int> cores = {0};
+std::vector<int> cores;
 
 // Takeaway (for uncore monitoring):
 // (1) For perf_event_attr.type, specify the integer value for individual PMU instead of PERF_TYPE_RAW
@@ -527,16 +527,28 @@ void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
     std::cout << "cpu[" << cpu_id << "]: memory BW = " << info->curr_bw << " MBps" << std::endl;
 }
 
-void Monitor::measure_offcore_bandwidth(int cpu_id) {
-    perf_event_setup_offcore_mem_bw(cpu_id);
+void Monitor::measure_offcore_bandwidth(const std::vector<int> &cores) {
+    for (const auto &c : cores) {
+        perf_event_setup_offcore_mem_bw(c);
+    }
 
     for (;;) {
-        perf_event_enable_offcore_mem_bw(cpu_id);
+        for (const auto &c: cores) {
+            perf_event_enable_offcore_mem_bw(c);
+        }
 
         double elapsed = sleep_ms(sampling_period_ms_);
 
-        perf_event_disable_offcore_mem_bw(cpu_id);
-        perf_event_read_offcore_mem_bw(cpu_id, elapsed);
+        for (const auto &c: cores) {
+            perf_event_disable_offcore_mem_bw(c);
+        }
+
+        double total_bw = 0;
+        for (const auto &c: cores) {
+            perf_event_read_offcore_mem_bw(c, elapsed);
+            total_bw += bw_info_cpu_[c].curr_bw;
+        }
+        std::cout << "TOTAL memory BW: " << total_bw << " MBps" << std::endl;
     }
 }
 
@@ -679,6 +691,10 @@ void signal_handler(int s) {
 int main (int argc, char *argv[]) {
     ////Monitor monitor = Monitor();        // moved to global to make signal handler work
     ////std::vector<int> cores = {0};       // moved to global to make signal handler work
+    //cores = {0};
+    for (int i = 0; i < NUM_CORES; i++) {
+        cores.push_back(i);
+    }
 
     //// for easy test purposes
     struct sigaction sigIntHandler;
@@ -693,7 +709,7 @@ int main (int argc, char *argv[]) {
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
-    //monitor.measure_offcore_bandwidth(0);
+    monitor.measure_offcore_bandwidth(cores);
 
-    monitor.measure_page_temp(cores);
+    //monitor.measure_page_temp(cores);
 }
