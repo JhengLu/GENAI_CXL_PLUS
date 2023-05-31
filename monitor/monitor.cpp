@@ -527,6 +527,7 @@ void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
     std::cout << "cpu[" << cpu_id << "]: memory BW = " << info->curr_bw << " MBps" << std::endl;
 }
 
+//TODO: clear some counters values that are too small to keep the readings clean.
 void Monitor::measure_offcore_bandwidth(const std::vector<int> &cores) {
     for (const auto &c : cores) {
         perf_event_setup_offcore_mem_bw(c);
@@ -646,6 +647,9 @@ void Monitor::sample_page_access(const std::vector<int> &cores) {
 // currently used for test purposes
 // might extend to a separate long-runing thread in the future as an actual design component
 void Monitor::measure_hot_page_pctg(const std::vector<int> &cores) {
+    if (page_access_map_.size() == 0) {
+        return;
+    }
     std::vector<std::pair<uint64_t, uint64_t>> temp_vec(page_access_map_.begin(), page_access_map_.end());
     std::sort(temp_vec.begin(), temp_vec.end(), [](auto &left, auto &right) {
         return left.second < right.second;
@@ -683,7 +687,7 @@ void Monitor::measure_page_temp(const std::vector<int> &cores) {
 
 // for test purposes
 void signal_handler(int s) {
-    std::cout << "receive signal " << s << std::endl;
+    //std::cout << "receive signal " << s << std::endl;
     monitor.measure_hot_page_pctg(cores);
     exit(1);
 }
@@ -691,7 +695,7 @@ void signal_handler(int s) {
 int main (int argc, char *argv[]) {
     ////Monitor monitor = Monitor();        // moved to global to make signal handler work
     ////std::vector<int> cores = {0};       // moved to global to make signal handler work
-    //cores = {0};
+
     for (int i = 0; i < NUM_CORES; i++) {
         cores.push_back(i);
     }
