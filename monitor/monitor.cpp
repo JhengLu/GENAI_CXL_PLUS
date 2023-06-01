@@ -192,6 +192,23 @@ double Monitor::sleep_ms(int time) {
     return elapsed.count();
 }
 
+int Monitor::get_pid_from_proc_name(std::string proc_name) {
+    std::string cmd = "pidof " + proc_name;
+    char pidline[1024] = "";
+    FILE *fp = popen(cmd.c_str(), "r");
+    fgets(pidline, 1024, fp);
+
+    if (pidline && !pidline[0]) {   // check empty c string
+        pclose(fp);
+        return -1;
+    }
+
+    int pid = strtoul(pidline, NULL, 10);
+    pclose(fp);
+
+    return pid;
+}
+
 void Monitor::measure_uncore_latency() {
     // setup fd for each event on each PMU per socket
     for (int i = 0; i < num_sockets_; i++) {
@@ -322,7 +339,7 @@ void Monitor::perf_event_read_process_latency(int pid) {
     lat_info_process_[pid].curr_count_l1d_pend_miss = count_l1d_pend_miss;
     lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
     double latency_ns = latency_cycles / PROCESSOR_GHZ;
-    std::cout << "process " << pid << "]: latency = " << latency_ns << " ns" << std::endl;
+    std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
 }
 
 void Monitor::measure_process_latency(int pid) {
@@ -336,6 +353,39 @@ void Monitor::measure_process_latency(int pid) {
         perf_event_disable_process_latency(pid);
         perf_event_read_process_latency(pid);
     }
+}
+
+void Monitor::measure_process_latency(std::string proc_name) {
+    // get pid first via process name
+    int pid = -1;
+    bool found_pid = false;
+    while (!found_pid) {
+        pid = get_pid_from_proc_name(proc_name);
+        if (pid != -1) {
+            std::cout << "Start measuring latency for " << proc_name << "(" << pid << ") ..." << std::endl;
+            found_pid = true;
+        }
+    }
+
+    // measure latency given the pid; always check if the process still exists
+    bool process_exists = true;
+
+    perf_event_setup_process_latency(pid);
+
+    while (process_exists) {
+        perf_event_enable_process_latency(pid);
+
+        sleep_ms(sampling_period_ms_);
+
+        perf_event_disable_process_latency(pid);
+        perf_event_read_process_latency(pid);
+
+        if (get_pid_from_proc_name(proc_name) == -1) {
+            process_exists = false;
+        }
+    }
+
+    std::cout << proc_name << " no longer exists. Stop measuring." << std::endl;
 }
 
 // opcode - 0: read, 1: write, 2: both
@@ -685,6 +735,7 @@ void Monitor::measure_page_temp(const std::vector<int> &cores) {
     
 }
 
+
 // for test purposes
 void signal_handler(int s) {
     //std::cout << "receive signal " << s << std::endl;
@@ -713,7 +764,9 @@ int main (int argc, char *argv[]) {
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
-    monitor.measure_offcore_bandwidth(cores);
+    //monitor.measure_offcore_bandwidth(cores);
 
     //monitor.measure_page_temp(cores);
+
+    monitor.measure_process_latency("memtier_benchmark");
 }

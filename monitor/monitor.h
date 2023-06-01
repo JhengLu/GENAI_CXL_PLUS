@@ -4,6 +4,7 @@
 #include <linux/perf_event.h>
 #include <vector>
 #include <map>
+#include <string>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
@@ -105,6 +106,8 @@ class Monitor {
     void perf_event_disable(int fd);
     int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     double sleep_ms(int time);
+    
+    int get_pid_from_proc_name(std::string proc_name);
 
     void measure_uncore_latency();
 
@@ -119,6 +122,7 @@ class Monitor {
     void perf_event_disable_process_latency(int pid);
     void perf_event_read_process_latency(int pid);
     void measure_process_latency(int pid);
+    void measure_process_latency(std::string proc_name);
 
     void perf_event_setup_uncore_mem_bw(int opcode);
     void perf_event_enable_uncore_mem_bw(int opcode);
