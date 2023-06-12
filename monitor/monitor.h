@@ -120,7 +120,7 @@ class Monitor {
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
     void perf_event_disable_process_latency(int pid);
-    void perf_event_read_process_latency(int pid);
+    void perf_event_read_process_latency(int pid, bool log_latency = false);
     void measure_process_latency(int pid);
     void measure_process_latency(std::string proc_name);
 
@@ -173,6 +173,7 @@ class Monitor {
 
     // for per-thread lat measurements ({pid, ()})
     std::map<int, LatencyInfoPerProcess> lat_info_process_;
+    std::vector<double> sampled_process_lat_;   // for plotting
 
     // for offcore bw measurements ([cpu])
     std::vector<BWInfoPerCore> bw_info_cpu_;

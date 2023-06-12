@@ -330,7 +330,7 @@ void Monitor::perf_event_disable_process_latency(int pid) {
     perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
 }
 
-void Monitor::perf_event_read_process_latency(int pid) {
+void Monitor::perf_event_read_process_latency(int pid, bool log_latency) {
     uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
     read(lat_info_process_[pid].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
     read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
@@ -339,6 +339,9 @@ void Monitor::perf_event_read_process_latency(int pid) {
     lat_info_process_[pid].curr_count_l1d_pend_miss = count_l1d_pend_miss;
     lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
     double latency_ns = latency_cycles / PROCESSOR_GHZ;
+    if (log_latency) {
+        sampled_process_lat_.push_back(latency_ns);
+    }
     std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
 }
 
@@ -378,11 +381,25 @@ void Monitor::measure_process_latency(std::string proc_name) {
         sleep_ms(sampling_period_ms_);
 
         perf_event_disable_process_latency(pid);
-        perf_event_read_process_latency(pid);
+        perf_event_read_process_latency(pid, true);
 
         if (get_pid_from_proc_name(proc_name) == -1) {
             process_exists = false;
         }
+    }
+
+    if (!sampled_process_lat_.empty()) {
+        double sum_lat = 0;
+        std::cout << "sampled latency = [";
+        int i = 0;
+        for (; i < sampled_process_lat_.size() - 1; i++) {
+            std::cout << int(sampled_process_lat_[i]) << ",";
+            sum_lat += sampled_process_lat_[i];
+        }
+        std::cout << int(sampled_process_lat_[i]) << "]" << std::endl;
+        sum_lat += sampled_process_lat_[i];
+        double avg_lat = sum_lat / sampled_process_lat_.size();
+        std::cout << "avg sampled latency = " << avg_lat << std::endl;
     }
 
     std::cout << proc_name << " no longer exists. Stop measuring." << std::endl;
@@ -603,6 +620,36 @@ void Monitor::measure_offcore_bandwidth(const std::vector<int> &cores) {
     }
 }
 
+void Monitor::measure_total_bandwidth_per_socket() {
+    for (int i = 0; i < NUM_CORES; i++) {
+        perf_event_setup_offcore_mem_bw(i);
+    }
+
+    for (;;) {
+        for (int i = 0; i < NUM_CORES; i++) {
+            perf_event_enable_offcore_mem_bw(i);
+        }
+
+        double elapsed = sleep_ms(sampling_period_ms_);
+
+        for (int i = 0; i < NUM_CORES; i++) {
+            perf_event_disable_offcore_mem_bw(i);
+        }
+
+        std::vector<double> total_bw_per_socket = std::vector<double>(0, NUM_SOCKETS);
+        for (int i = 0; i < NUM_CORES; i++) {
+            perf_event_read_offcore_mem_bw(i, elapsed);
+            total_bw_per_socket[i % NUM_SOCKETS] += bw_info_cpu_[i].curr_bw;
+        }
+        double total_bw = 0;
+        for (int i = 0; i < NUM_SOCKETS; i++) {
+            std::cout << "Total memory BW on Socket " << i << ": " << total_bw_per_socket[i] << " MBps" << std::endl;
+            total_bw += total_bw_per_socket[i];
+        }
+        std::cout << "Total memory BW all sockets: " << total_bw << " MBps" << std::endl << std::endl;;
+    }
+}
+
 int Monitor::perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
     struct perf_event_attr event_attr;
     memset(&event_attr, 0, sizeof(event_attr));
@@ -681,10 +728,6 @@ void Monitor::sample_page_access(const std::vector<int> &cores) {
                     num_cpu_throttle_++;
                 } else if (sample->header.type == PERF_RECORD_UNTHROTTLE) {
                     num_cpu_unthrottle_++;
-                }
-                if (sample->cpu != 0) {
-                    std::cout << "PUPU cpu = " << sample->cpu << std::endl;
-                    exit(1);
                 }
                 p->data_tail += sample->header.size;    // manually update data tail
                 //std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
@@ -769,4 +812,5 @@ int main (int argc, char *argv[]) {
     //monitor.measure_page_temp(cores);
 
     monitor.measure_process_latency("memtier_benchmark");
+    //monitor.measure_process_latency("redis-server");
 }
