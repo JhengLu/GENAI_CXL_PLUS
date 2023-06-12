@@ -636,7 +636,7 @@ void Monitor::measure_total_bandwidth_per_socket() {
             perf_event_disable_offcore_mem_bw(i);
         }
 
-        std::vector<double> total_bw_per_socket = std::vector<double>(0, NUM_SOCKETS);
+        std::vector<double> total_bw_per_socket = std::vector<double>(NUM_SOCKETS, 0);
         for (int i = 0; i < NUM_CORES; i++) {
             perf_event_read_offcore_mem_bw(i, elapsed);
             total_bw_per_socket[i % NUM_SOCKETS] += bw_info_cpu_[i].curr_bw;
