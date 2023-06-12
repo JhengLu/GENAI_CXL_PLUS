@@ -807,10 +807,12 @@ int main (int argc, char *argv[]) {
     //monitor.measure_core_latency(0);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
+
     //monitor.measure_offcore_bandwidth(cores);
+    monitor.measure_total_bandwidth_per_socket();
 
     //monitor.measure_page_temp(cores);
 
-    monitor.measure_process_latency("memtier_benchmark");
+    //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
 }

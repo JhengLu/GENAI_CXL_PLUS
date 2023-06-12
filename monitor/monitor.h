@@ -138,6 +138,7 @@ class Monitor {
     void perf_event_disable_offcore_mem_bw(int cpu_id);
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
     void measure_offcore_bandwidth(const std::vector<int> &cores);
+    void measure_total_bandwidth_per_socket();
 
     int perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     struct perf_event_mmap_page *perf_event_setup_mmap_page(int fd);
