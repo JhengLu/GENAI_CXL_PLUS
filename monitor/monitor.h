@@ -3,8 +3,9 @@
 
 #include <linux/perf_event.h>
 #include <vector>
-#include <map>
 #include <string>
+#include <map>
+#include <set>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
@@ -41,6 +42,14 @@ const uint32_t PMU_CHA_TYPE[] = {25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
 
 // perf_event_attr.type value for each individual imc unit found in /sys/bus/event_source/devices/uncore_imc_*/type
 const uint32_t PMU_IMC_TYPE[] = {12, 13, 14, 15, 16, 17};   // CloudLab c6420
+
+class ApplicationInfo {
+  public:
+    int pid;
+    std::string name;
+    std::vector<int> bw_cores;
+    std::vector<int> lat_cores;
+};
 
 class LatencyInfoPerCore {
   public:
@@ -100,6 +109,8 @@ class Monitor {
     Monitor();
     ~Monitor();
 
+    void add_application(ApplicationInfo *app_info);
+
     // TODO: move most functions to private
     void perf_event_reset(int fd);
     void perf_event_enable(int fd);
@@ -139,6 +150,7 @@ class Monitor {
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
     void measure_offcore_bandwidth(const std::vector<int> &cores);
     void measure_total_bandwidth_per_socket();
+    void measure_application_bandwidth();
 
     int perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     struct perf_event_mmap_page *perf_event_setup_mmap_page(int fd);
@@ -147,6 +159,7 @@ class Monitor {
     void sample_page_access(const std::vector<int> &cores);
     void measure_hot_page_pctg(const std::vector<int> &cores);
     void measure_page_temp(const std::vector<int> &cores);
+
 
   private:
     uint32_t num_sockets_;
@@ -186,6 +199,10 @@ class Monitor {
     uint64_t num_cpu_throttle_;
     uint64_t num_cpu_unthrottle_;
     // TODO: need a pid to core mapping
+
+    std::map<int, ApplicationInfo *> application_info_;     // key: pid
+    std::set<int> bw_core_list_;
+    
 };
 
 

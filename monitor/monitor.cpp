@@ -17,7 +17,7 @@
 #include "monitor.h"
 
 Monitor monitor = Monitor();
-std::vector<int> cores;
+std::vector<int> cores_g;
 
 // Takeaway (for uncore monitoring):
 // (1) For perf_event_attr.type, specify the integer value for individual PMU instead of PERF_TYPE_RAW
@@ -145,6 +145,20 @@ Monitor::Monitor() {
 }
 
 Monitor::~Monitor() {
+    // TODO: delete ApplicationInfo *
+}
+
+void Monitor::add_application(ApplicationInfo *app_info) {
+    application_info_[app_info->pid] = app_info;
+
+    // update the core list to monitor b/w
+    for (const auto &c : app_info->bw_cores) {
+        if (bw_core_list_.contains(c)) {
+            std::cout << "[Error] add_application: bw core (" << c 
+                << ") already exists in monitor's bw core list" << std::endl;
+        }
+        bw_core_list_.insert(c);
+    }
 }
 
 void Monitor::perf_event_reset(int fd) {
@@ -650,6 +664,33 @@ void Monitor::measure_total_bandwidth_per_socket() {
     }
 }
 
+void Monitor::measure_application_bandwidth() {
+    for (const auto &c : bw_core_list_) {
+        perf_event_setup_offcore_mem_bw(c);
+    }
+
+    for (;;) {
+        for (const auto &c: bw_core_list_) {
+            perf_event_enable_offcore_mem_bw(c);
+        }
+
+        double elapsed = sleep_ms(sampling_period_ms_);
+
+        for (const auto &c: bw_core_list_) {
+            perf_event_disable_offcore_mem_bw(c);
+        }
+
+        for (const auto &[pid, app] : application_info_) {
+            double total_bw = 0;
+            for (const auto &c : app->bw_cores) {
+                perf_event_read_offcore_mem_bw(c, elapsed);
+                total_bw += bw_info_cpu_[c].curr_bw;
+            }
+            std::cout << "App (\"" << app->name <<  "\") BW: " << total_bw << " MBps" << std::endl << std::endl;
+        }
+    }
+}
+
 int Monitor::perf_event_setup_pebs(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
     struct perf_event_attr event_attr;
     memset(&event_attr, 0, sizeof(event_attr));
@@ -782,7 +823,7 @@ void Monitor::measure_page_temp(const std::vector<int> &cores) {
 // for test purposes
 void signal_handler(int s) {
     //std::cout << "receive signal " << s << std::endl;
-    monitor.measure_hot_page_pctg(cores);
+    monitor.measure_hot_page_pctg(cores_g);
     exit(1);
 }
 
@@ -791,7 +832,7 @@ int main (int argc, char *argv[]) {
     ////std::vector<int> cores = {0};       // moved to global to make signal handler work
 
     for (int i = 0; i < NUM_CORES; i++) {
-        cores.push_back(i);
+        cores_g.push_back(i);
     }
 
     //// for easy test purposes
@@ -808,11 +849,26 @@ int main (int argc, char *argv[]) {
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
 
-    //monitor.measure_offcore_bandwidth(cores);
-    monitor.measure_total_bandwidth_per_socket();
+    //monitor.measure_offcore_bandwidth(cores_g);
+    //monitor.measure_total_bandwidth_per_socket();
 
-    //monitor.measure_page_temp(cores);
+    ApplicationInfo *app_info_1 = new ApplicationInfo();
+    app_info_1->pid = 1;
+    app_info_1->name = "local thread";
+    app_info_1->bw_cores = {1,3,5,7,9,11,13,15};
+    monitor.add_application(app_info_1);
+
+    ApplicationInfo *app_info_2 = new ApplicationInfo();
+    app_info_2->pid = 2;
+    app_info_2->name = "remote threads";
+    app_info_2->bw_cores = {17,19,21,23,25,27,29,31};
+    monitor.add_application(app_info_2);
+
+    monitor.measure_application_bandwidth();
+
+    //monitor.measure_page_temp(cores_g);
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
+    //monitor.measure_process_latency("test_page_freq");
 }
