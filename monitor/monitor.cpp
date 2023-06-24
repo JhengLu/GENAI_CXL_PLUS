@@ -590,6 +590,12 @@ void Monitor::perf_event_setup_offcore_mem_bw(int cpu_id) {
     perf_event_reset(fd);
 }
 
+void Monitor::perf_event_setup_offcore_mem_bw_l3_load(int cpu_id) {
+    int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_OFFCORE_REQUESTS_L3_MISS_DEMAND_DATA_RD);
+    bw_info_cpu_[cpu_id].fd_offcore_all_reqs = fd;
+    perf_event_reset(fd);
+}
+
 void Monitor::perf_event_enable_offcore_mem_bw(int cpu_id) {
     perf_event_enable(bw_info_cpu_[cpu_id].fd_offcore_all_reqs);
 }
@@ -602,7 +608,7 @@ void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
     uint64_t count_bw = 0;     // TODO: need to construct a custom struct when we specify more read format later
     BWInfoPerCore *info = &bw_info_cpu_[cpu_id];
     read(info->fd_offcore_all_reqs, &count_bw, sizeof(count_bw));
-    double curr_bw = (count_bw - info->curr_count_offcore_all_reqs) * 64 / 1024 / 1024 / (elapsed_ms / 1000);     // in MBps
+    double curr_bw = (count_bw - info->curr_count_offcore_all_reqs) * 64 / 1000 / 1000 / (elapsed_ms / 1000);     // in MBps
     info->curr_count_offcore_all_reqs = count_bw;
     info->curr_bw = ewma_alpha_ * curr_bw + (1 - ewma_alpha_) * info->curr_bw;
     std::cout << "cpu[" << cpu_id << "]: memory BW = " << info->curr_bw << " MBps" << std::endl;
@@ -630,13 +636,15 @@ void Monitor::measure_offcore_bandwidth(const std::vector<int> &cores) {
             perf_event_read_offcore_mem_bw(c, elapsed);
             total_bw += bw_info_cpu_[c].curr_bw;
         }
-        std::cout << "TOTAL memory BW: " << total_bw << " MBps" << std::endl;
+        //std::cout << "TOTAL memory BW: " << total_bw << " MBps" << std::endl;
+        std::cout << "TOTAL memory BW: " << total_bw / 1000 << " GBps" << std::endl;
     }
 }
 
 void Monitor::measure_total_bandwidth_per_socket() {
     for (int i = 0; i < NUM_CORES; i++) {
         perf_event_setup_offcore_mem_bw(i);
+        //perf_event_setup_offcore_mem_bw_l3_load(i);
     }
 
     for (;;) {
@@ -657,10 +665,12 @@ void Monitor::measure_total_bandwidth_per_socket() {
         }
         double total_bw = 0;
         for (int i = 0; i < NUM_SOCKETS; i++) {
-            std::cout << "Total memory BW on Socket " << i << ": " << total_bw_per_socket[i] << " MBps" << std::endl;
+            //std::cout << "Total memory BW on Socket " << i << ": " << total_bw_per_socket[i] << " MBps" << std::endl;
+            std::cout << "Total memory BW on Socket " << i << ": " << total_bw_per_socket[i] / 1000 << " GBps" << std::endl;
             total_bw += total_bw_per_socket[i];
         }
-        std::cout << "Total memory BW all sockets: " << total_bw << " MBps" << std::endl << std::endl;;
+        //std::cout << "Total memory BW all sockets: " << total_bw << " MBps" << std::endl << std::endl;;
+        std::cout << "Total memory BW all sockets: " << total_bw / 1000 << " GBps" << std::endl << std::endl;;
     }
 }
 
@@ -845,30 +855,37 @@ int main (int argc, char *argv[]) {
 
     //monitor.measure_uncore_latency();
     //monitor.measure_uncore_bandwidth_all();
-    //monitor.measure_core_latency(0);
+    //monitor.measure_core_latency(1);
     //int pid = atoi(argv[1]);
     //monitor.measure_process_latency(pid);
 
     //monitor.measure_offcore_bandwidth(cores_g);
     //monitor.measure_total_bandwidth_per_socket();
 
+    /*
     ApplicationInfo *app_info_1 = new ApplicationInfo();
     app_info_1->pid = 1;
     app_info_1->name = "local thread";
-    app_info_1->bw_cores = {1,3,5,7,9,11,13,15};
+    ////app_info_1->bw_cores = {1,3,5,7,9,11,13,15};
+    app_info_1->bw_cores = {1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31};
+    ////app_info_1->bw_cores = {1,3,5,7,9,11,13,15,49,51,53,55,57,59,61,63};
+    //app_info_1->bw_cores = {1,3,5,7,9,11,13,15,33,35,37,39,41,43,45,47};
     monitor.add_application(app_info_1);
 
     ApplicationInfo *app_info_2 = new ApplicationInfo();
     app_info_2->pid = 2;
     app_info_2->name = "remote threads";
-    app_info_2->bw_cores = {17,19,21,23,25,27,29,31};
+    //app_info_2->bw_cores = {17,19,21,23,25,27,29,31};
+    //app_info_2->bw_cores = {33,35,37,39,41,43,45,47};
+    app_info_2->bw_cores = {33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63};
     monitor.add_application(app_info_2);
 
     monitor.measure_application_bandwidth();
+    */
 
     //monitor.measure_page_temp(cores_g);
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
-    //monitor.measure_process_latency("test_page_freq");
+    monitor.measure_process_latency("test_page_freq");
 }

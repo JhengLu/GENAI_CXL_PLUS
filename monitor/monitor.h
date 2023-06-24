@@ -18,6 +18,7 @@
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM 0x01D3UL
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM 0x02D3UL
 #define EVENT_OFFCORE_REQUESTS_ALL_REQUESTS 0x80B0
+#define EVENT_OFFCORE_REQUESTS_L3_MISS_DEMAND_DATA_RD 0x10B0
 
 #define PAGE_SIZE 4096UL
 #define NUM_PERF_EVENT_MMAP_PAGES 256UL
@@ -145,6 +146,7 @@ class Monitor {
     void measure_uncore_bandwidth_all();
 
     void perf_event_setup_offcore_mem_bw(int cpu_id);
+    void perf_event_setup_offcore_mem_bw_l3_load(int cpu_id);
     void perf_event_enable_offcore_mem_bw(int cpu_id);
     void perf_event_disable_offcore_mem_bw(int cpu_id);
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
