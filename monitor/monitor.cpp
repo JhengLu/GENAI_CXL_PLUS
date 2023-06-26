@@ -190,6 +190,7 @@ int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uin
     event_attr.size = sizeof(event_attr);
     event_attr.config = event_id;
     event_attr.disabled = 1;
+    event_attr.inherit = 1;     // includes child process
     event_attr.precise_ip = 0;
 
     int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
