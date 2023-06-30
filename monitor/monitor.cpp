@@ -33,6 +33,15 @@ static int perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
     return ret;
 }
 
+ApplicationInfo::ApplicationInfo(std::string app_name) {
+    pid = -1;
+    process_exists = false;
+    name = app_name;
+}
+
+ApplicationInfo::~ApplicationInfo() {
+}
+
 LatencyInfoPerCore::LatencyInfoPerCore(int cpu_id) {
     cpu_id = cpu_id;
     fd_l1d_pend_miss = -1;
@@ -149,6 +158,18 @@ Monitor::~Monitor() {
 }
 
 void Monitor::add_application(ApplicationInfo *app_info) {
+    // find pid by app name
+    int pid = -1;
+    bool found_pid = false;
+    while (!found_pid) {
+        pid = get_pid_from_proc_name(app_info->name);
+        if (pid != -1) {
+            found_pid = true;
+        }
+    }
+    app_info->pid = pid;
+    app_info->process_exists = true;
+
     application_info_[app_info->pid] = app_info;
 
     // update the core list to monitor b/w
@@ -345,7 +366,7 @@ void Monitor::perf_event_disable_process_latency(int pid) {
     perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
 }
 
-void Monitor::perf_event_read_process_latency(int pid, bool log_latency) {
+void Monitor::perf_event_read_process_latency(int pid, bool log_latency, ApplicationInfo *app_info) {
     uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
     read(lat_info_process_[pid].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
     read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
@@ -357,7 +378,11 @@ void Monitor::perf_event_read_process_latency(int pid, bool log_latency) {
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
     }
-    std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
+    if (app_info) {
+        std::cout << "App (\"" << app_info->name <<  "\"): latency = " << latency_ns << " ns" << std::endl;
+    } else {
+        std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
+    }
 }
 
 void Monitor::measure_process_latency(int pid) {
@@ -418,6 +443,38 @@ void Monitor::measure_process_latency(std::string proc_name) {
     }
 
     std::cout << proc_name << " no longer exists. Stop measuring." << std::endl;
+}
+
+void Monitor::measure_application_latency() {
+    for (const auto &[pid, app] : application_info_) {
+        perf_event_setup_process_latency(pid);
+    }
+
+    for (;;) {
+        for (const auto &[pid, app] : application_info_) {
+            if (app->process_exists) {
+                perf_event_enable_process_latency(pid);
+            }
+        }
+
+        sleep_ms(sampling_period_ms_);
+
+        for (const auto &[pid, app] : application_info_) {
+            if (app->process_exists) {
+                perf_event_disable_process_latency(pid);
+                perf_event_read_process_latency(pid, false, app);
+            }
+        }
+
+        for (const auto &[pid, app] : application_info_) {
+            if (get_pid_from_proc_name(app->name) == -1) {
+                app->process_exists = false;
+            }
+            //} else {
+            //    app->process_exists = true;     // shall we do this?
+            //}
+        }
+    }
 }
 
 // opcode - 0: read, 1: write, 2: both
@@ -591,11 +648,11 @@ void Monitor::perf_event_setup_offcore_mem_bw(int cpu_id) {
     perf_event_reset(fd);
 }
 
-void Monitor::perf_event_setup_offcore_mem_bw_l3_load(int cpu_id) {
-    int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_OFFCORE_REQUESTS_L3_MISS_DEMAND_DATA_RD);
-    bw_info_cpu_[cpu_id].fd_offcore_all_reqs = fd;
-    perf_event_reset(fd);
-}
+//void Monitor::perf_event_setup_offcore_mem_bw_l3_load(int cpu_id) {
+//    int fd = perf_event_setup(-1, cpu_id, -1, PERF_TYPE_RAW, EVENT_OFFCORE_REQUESTS_L3_MISS_DEMAND_DATA_RD);
+//    bw_info_cpu_[cpu_id].fd_offcore_all_reqs = fd;
+//    perf_event_reset(fd);
+//}
 
 void Monitor::perf_event_enable_offcore_mem_bw(int cpu_id) {
     perf_event_enable(bw_info_cpu_[cpu_id].fd_offcore_all_reqs);
@@ -616,6 +673,7 @@ void Monitor::perf_event_read_offcore_mem_bw(int cpu_id, double elapsed_ms) {
 }
 
 //TODO: clear some counters values that are too small to keep the readings clean.
+// This is the total bandwidth
 void Monitor::measure_offcore_bandwidth(const std::vector<int> &cores) {
     for (const auto &c : cores) {
         perf_event_setup_offcore_mem_bw(c);
@@ -888,5 +946,16 @@ int main (int argc, char *argv[]) {
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
-    monitor.measure_process_latency("test_page_freq");
+    //monitor.measure_process_latency("test_page_freq");
+
+    //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq");
+    //monitor.add_application(app_info_1);
+
+    ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq_local");
+    ApplicationInfo *app_info_2 = new ApplicationInfo("test_page_freq_remote");
+    monitor.add_application(app_info_1);
+    monitor.add_application(app_info_2);
+
+    monitor.measure_application_latency();
+
 }

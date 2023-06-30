@@ -24,6 +24,7 @@
 #define NUM_PERF_EVENT_MMAP_PAGES 256UL
 #define SAMPLING_PERIOD_EVENT 500UL         // in # of events
 //#define SAMPLING_PERIOD_MS 50UL             // in ms
+//#define SAMPLING_PERIOD_MS 200UL             // in ms
 //#define SAMPLING_PERIOD_MS 500UL             // in ms
 #define SAMPLING_PERIOD_MS 1000UL             // in ms
 #define EWMA_ALPHA 0.5
@@ -46,7 +47,10 @@ const uint32_t PMU_IMC_TYPE[] = {12, 13, 14, 15, 16, 17};   // CloudLab c6420
 
 class ApplicationInfo {
   public:
+  ApplicationInfo(std::string app_name);
+  ~ApplicationInfo();
     int pid;
+    bool process_exists;
     std::string name;
     std::vector<int> bw_cores;
     std::vector<int> lat_cores;
@@ -132,9 +136,10 @@ class Monitor {
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
     void perf_event_disable_process_latency(int pid);
-    void perf_event_read_process_latency(int pid, bool log_latency = false);
+    void perf_event_read_process_latency(int pid, bool log_latency = false, ApplicationInfo *app_info = NULL);
     void measure_process_latency(int pid);
     void measure_process_latency(std::string proc_name);
+    void measure_application_latency();
 
     void perf_event_setup_uncore_mem_bw(int opcode);
     void perf_event_enable_uncore_mem_bw(int opcode);
@@ -146,7 +151,7 @@ class Monitor {
     void measure_uncore_bandwidth_all();
 
     void perf_event_setup_offcore_mem_bw(int cpu_id);
-    void perf_event_setup_offcore_mem_bw_l3_load(int cpu_id);
+    //void perf_event_setup_offcore_mem_bw_l3_load(int cpu_id);
     void perf_event_enable_offcore_mem_bw(int cpu_id);
     void perf_event_disable_offcore_mem_bw(int cpu_id);
     void perf_event_read_offcore_mem_bw(int cpu_id, double elapsed);
