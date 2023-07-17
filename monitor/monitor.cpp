@@ -114,6 +114,8 @@ Monitor::Monitor() {
     ewma_alpha_ = EWMA_ALPHA;
     num_cpu_throttle_ = 0;
     num_cpu_unthrottle_ = 0;
+    num_local_access_ = 0;
+    num_remote_access_ = 0;
     for (const auto &x : PMU_CHA_TYPE) {
         pmu_cha_type_.push_back(x);
     }
@@ -840,6 +842,11 @@ void Monitor::sample_page_access(const std::vector<int> &cores) {
                     num_cpu_unthrottle_++;
                 }
                 p->data_tail += sample->header.size;    // manually update data tail
+                if (i == 0) {           // assuming EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM
+                    num_local_access_++;
+                } else if (i == 1) {    // assuming EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM
+                    num_remote_access_++;
+                }
                 //std::cout << "page_access_map_.size() = " << page_access_map_.size() << std::endl;
                 ////n -= 1;
             }
@@ -872,7 +879,10 @@ void Monitor::measure_hot_page_pctg(const std::vector<int> &cores) {
         }
         //std::cout << i << "th: \t" << num_acc << std::endl;
     }
-    std::cout << "num cpu throttle: " << monitor.num_cpu_throttle_ << "; num cpu untrottle: " << monitor.num_cpu_unthrottle_ << std::endl;
+    std::cout << "num cpu throttle: " << num_cpu_throttle_ << "; num cpu untrottle: " << num_cpu_unthrottle_ << std::endl;
+
+    double remote_access_ratio = (double) num_remote_access_ / (num_local_access_ + num_remote_access_);
+    std::cout << "remote access ratio = " << remote_access_ratio << std::endl;
 
     //std::multimap<uint64_t, uint64_t> sorted_map = flip_map(page_access_map_);
     //for (const auto &[num_acc, addr] : sorted_map) {
@@ -946,16 +956,16 @@ int main (int argc, char *argv[]) {
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
-    //monitor.measure_process_latency("test_page_freq");
+    monitor.measure_process_latency("test_page_freq");
 
     //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq");
     //monitor.add_application(app_info_1);
 
-    ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq_local");
-    ApplicationInfo *app_info_2 = new ApplicationInfo("test_page_freq_remote");
-    monitor.add_application(app_info_1);
-    monitor.add_application(app_info_2);
+    //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq_local");
+    //ApplicationInfo *app_info_2 = new ApplicationInfo("test_page_freq_remote");
+    //monitor.add_application(app_info_1);
+    //monitor.add_application(app_info_2);
 
-    monitor.measure_application_latency();
+    //monitor.measure_application_latency();
 
 }

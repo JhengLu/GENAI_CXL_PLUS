@@ -205,6 +205,8 @@ class Monitor {
     std::map<uint64_t, uint64_t> page_access_map_;
     uint64_t num_cpu_throttle_;
     uint64_t num_cpu_unthrottle_;
+    uint64_t num_local_access_;
+    uint64_t num_remote_access_;
     // TODO: need a pid to core mapping
 
     std::map<int, ApplicationInfo *> application_info_;     // key: pid
