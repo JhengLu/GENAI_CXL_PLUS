@@ -440,8 +440,11 @@ void Monitor::measure_process_latency(std::string proc_name) {
         }
         std::cout << int(sampled_process_lat_[i]) << "]" << std::endl;
         sum_lat += sampled_process_lat_[i];
+        std::sort(sampled_process_lat_.begin() + sampled_process_lat_.size() * 0.1, sampled_process_lat_.begin() + sampled_process_lat_.size() * 0.9);
         double avg_lat = sum_lat / sampled_process_lat_.size();
+        int medium = sampled_process_lat_[sampled_process_lat_.size() * 0.5];
         std::cout << "avg sampled latency = " << avg_lat << std::endl;
+        std::cout << "Medium Sampled Latency = " << medium << std::endl;
     }
 
     std::cout << proc_name << " no longer exists. Stop measuring." << std::endl;
@@ -956,7 +959,7 @@ int main (int argc, char *argv[]) {
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
-    monitor.measure_process_latency("test_page_freq");
+    monitor.measure_process_latency("bc");
 
     //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq");
     //monitor.add_application(app_info_1);
