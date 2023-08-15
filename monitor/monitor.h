@@ -2,10 +2,11 @@
 #define __MONITOR_H__
 
 #include <linux/perf_event.h>
-#include <vector>
-#include <string>
+
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
@@ -131,7 +132,13 @@ class Monitor {
     void perf_event_enable_core_latency(int cpu_id);
     void perf_event_disable_core_latency(int cpu_id);
     void perf_event_read_core_latency(int cpu_id);
-    void measure_core_latency(int cpu_id);          // TODO: a list of cores
+    void measure_core_latency(int cpu_id);
+
+    void perf_event_setup_cores_latency(const std::set<int> &cpu_ids);
+    void perf_event_enable_cores_latency(const std::set<int> &cpu_ids);
+    void perf_event_disable_cores_latency(const std::set<int> &cpu_ids);
+    void perf_event_read_cores_latency(const std::set<int> &cpu_ids);
+    void measure_cores_latency(const std::set<int> &cpu_ids);
 
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
@@ -213,6 +220,5 @@ class Monitor {
     std::set<int> bw_core_list_;
     
 };
-
 
 #endif
