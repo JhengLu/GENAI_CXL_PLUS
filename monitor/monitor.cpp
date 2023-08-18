@@ -1,25 +1,29 @@
-#include <stdlib.h>
+#include "monitor.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <getopt.h>
+#include <linux/perf_event.h>
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <linux/perf_event.h>
-#include <iostream>
-#include <assert.h>
-#include <errno.h>
-#include <chrono>
-#include <thread>
-#include <algorithm>
-#include <signal.h>
 
-#include "monitor.h"
+#include <algorithm>
+#include <chrono>
+#include <iostream>
+#include <sstream>
+#include <thread>
+#include <tuple>
 
 Monitor monitor = Monitor();
 std::vector<int> cores_g;
 
-// Takeaway (for uncore monitoring):
+// Takeaways (for uncore monitoring):
 // (1) For perf_event_attr.type, specify the integer value for individual PMU instead of PERF_TYPE_RAW
 // (2) Do not enable perf_event_attr.exclude_kernel
 // (3) In the hardware I use, I need to set precise_ip = 0 (i.e., PEBS won't work).
@@ -297,6 +301,88 @@ void Monitor::measure_uncore_latency() {
             //std::cout << "socket[" << i << "]: total count = " << count_sum[i] << std::endl;
         }
         std::cout << std::endl;
+    }
+}
+
+void Monitor::perf_event_setup_cores_latency(const std::set<int> &cpu_ids) {
+    assert(!cpu_ids.empty());
+
+    for (auto it = cpu_ids.begin(); it != cpu_ids.end(); ++it) {
+        int cpu_id = *it;
+        lat_info_cpu_[cpu_id].fd_l1d_pend_miss = perf_event_setup(
+            -1, cpu_id, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
+        perf_event_reset(lat_info_cpu_[cpu_id].fd_l1d_pend_miss);
+    }
+
+    for (auto it = cpu_ids.begin(); it != cpu_ids.end(); ++it) {
+        int cpu_id = *it;
+        lat_info_cpu_[cpu_id].fd_retired_l3_miss = perf_event_setup(
+            -1, cpu_id, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
+        perf_event_reset(lat_info_cpu_[cpu_id].fd_retired_l3_miss);
+    }
+}
+
+void Monitor::perf_event_enable_cores_latency(const std::set<int> &cpu_ids) {
+    for (const auto &cpu_id : cpu_ids) {
+        perf_event_enable(lat_info_cpu_[cpu_id].fd_l1d_pend_miss);
+        perf_event_enable(lat_info_cpu_[cpu_id].fd_retired_l3_miss);
+    }
+}
+
+void Monitor::perf_event_disable_cores_latency(const std::set<int> &cpu_ids) {
+    for (const auto &cpu_id : cpu_ids) {
+        perf_event_disable(lat_info_cpu_[cpu_id].fd_l1d_pend_miss);
+        perf_event_disable(lat_info_cpu_[cpu_id].fd_retired_l3_miss);
+    }
+}
+
+void Monitor::perf_event_read_cores_latency(const std::set<int> &cpu_ids) {
+    uint64_t count_l1d_pend_misses = 0, count_retired_l3_misses = 0;
+    uint64_t curr_count_l1d_pend_misses = 0, curr_count_retired_l3_misses = 0;
+
+    for (const auto &cpu_id : cpu_ids) {
+        uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
+        read(lat_info_cpu_[cpu_id].fd_l1d_pend_miss, &count_l1d_pend_miss,
+             sizeof(count_l1d_pend_miss));
+        read(lat_info_cpu_[cpu_id].fd_retired_l3_miss, &count_retired_l3_miss,
+             sizeof(count_retired_l3_miss));
+        count_l1d_pend_misses += count_l1d_pend_miss;
+        count_retired_l3_misses += count_retired_l3_miss;
+        curr_count_l1d_pend_misses +=
+            lat_info_cpu_[cpu_id].curr_count_l1d_pend_miss;
+        curr_count_retired_l3_misses +=
+            lat_info_cpu_[cpu_id].curr_count_retired_l3_miss;
+
+        lat_info_cpu_[cpu_id].curr_count_l1d_pend_miss = count_l1d_pend_miss;
+        lat_info_cpu_[cpu_id].curr_count_retired_l3_miss =
+            count_retired_l3_miss;
+    }
+
+    double latency_cycles =
+        (double)(count_l1d_pend_misses - curr_count_l1d_pend_misses) /
+        (count_retired_l3_misses - curr_count_retired_l3_misses);
+
+    double latency_ns = latency_cycles / PROCESSOR_GHZ;
+    std::string cpu_ids_str = "";
+    for (size_t i = 0; i < cpu_ids.size(); ++i) {
+        cpu_ids_str += std::to_string(*std::next(cpu_ids.begin(), i));
+        if (i != cpu_ids.size() - 1) {
+            cpu_ids_str += ",";
+        }
+    }
+    std::cout << "cpus[" << cpu_ids_str << "]: latency = " << latency_ns
+              << " ns" << std::endl;
+}
+
+void Monitor::measure_cores_latency(const std::set<int> &cpu_ids) {
+    perf_event_setup_cores_latency(cpu_ids);
+    for (;;) {
+        perf_event_enable_cores_latency(cpu_ids);
+
+        sleep_ms(sampling_period_ms_);
+
+        perf_event_disable_cores_latency(cpu_ids);
+        perf_event_read_cores_latency(cpu_ids);
     }
 }
 
@@ -901,7 +987,6 @@ void Monitor::measure_page_temp(const std::vector<int> &cores) {
     
 }
 
-
 // for test purposes
 void signal_handler(int s) {
     //std::cout << "receive signal " << s << std::endl;
@@ -959,7 +1044,10 @@ int main (int argc, char *argv[]) {
 
     //monitor.measure_process_latency("memtier_benchmark");
     //monitor.measure_process_latency("redis-server");
-    monitor.measure_process_latency("bc");
+    //monitor.measure_process_latency("bc");
+
+    std::set<int> node1_cores = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61};
+    monitor.measure_cores_latency(node1_cores);
 
     //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq");
     //monitor.add_application(app_info_1);
