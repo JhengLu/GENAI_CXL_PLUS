@@ -1018,14 +1018,26 @@ int main (int argc, char *argv[]) {
     //monitor.measure_page_temp(cores_g);
 
     int processId = -1; // Default to an invalid process ID
+    std::string processName = "";
 
-    // Iterate over all arguments to find --processid
+    // Iterate over all arguments to find --pid
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--processid") == 0) {
-            if (i + 1 < argc) { // Make sure there's an argument after --processid
+        if (strcmp(argv[i], "--pid") == 0) {
+            if (i + 1 < argc) { // Make sure there's an argument after --pid
                 processId = std::atoi(argv[i + 1]); // Convert the next argument to an integer
-                std::cout<<"processid: "<<processId<<std::endl;
-                break; // Exit the loop once we've found and processed --processid
+                std::cout<<"pid: "<<processId<<std::endl;
+                break; // Exit the loop once we've found and processed --pid
+            } else {
+                // Handle error: --pid flag is present, but no value is specified
+                std::cerr << "Error: --processid flag requires a value." << std::endl;
+                return 1; // Exit with an error code
+            }
+        }
+        else if (strcmp(argv[i], "--pname") == 0){
+            if (i + 1 < argc) { // Make sure there's an argument after --pname
+                processName = argv[i + 1]; // Convert the next argument to an integer
+                std::cout<<"pname: "<<processName<<std::endl;
+                break; // Exit the loop once we've found and processed --pname
             } else {
                 // Handle error: --processid flag is present, but no value is specified
                 std::cerr << "Error: --processid flag requires a value." << std::endl;
@@ -1036,6 +1048,11 @@ int main (int argc, char *argv[]) {
 
     if (processId > -1) {
         monitor.measure_process_latency(processId);
+    } else if (!processName.empty()) {
+        monitor.measure_process_latency(processName);
+    } else {
+        std::cerr << "No valid process identifier provided." << std::endl;
+        return 1;
     }
 
 
