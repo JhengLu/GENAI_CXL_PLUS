@@ -1021,7 +1021,7 @@ int main (int argc, char *argv[]) {
 
     // Iterate over all arguments to find --processid
     for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--processid") == 0) {
+        if (strcmp(argv[i], "--processid") == 0) {
             if (i + 1 < argc) { // Make sure there's an argument after --processid
                 processId = std::atoi(argv[i + 1]); // Convert the next argument to an integer
                 break; // Exit the loop once we've found and processed --processid
