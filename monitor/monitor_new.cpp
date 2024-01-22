@@ -1024,6 +1024,7 @@ int main (int argc, char *argv[]) {
         if (strcmp(argv[i], "--processid") == 0) {
             if (i + 1 < argc) { // Make sure there's an argument after --processid
                 processId = std::atoi(argv[i + 1]); // Convert the next argument to an integer
+                std::cout<<"processid: "<<processId<<std::endl;
                 break; // Exit the loop once we've found and processed --processid
             } else {
                 // Handle error: --processid flag is present, but no value is specified
