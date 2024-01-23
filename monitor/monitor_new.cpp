@@ -993,11 +993,11 @@ void Monitor::measure_application_latency() {
 //}
 
 // for test purposes
-void signal_handler(int s) {
-    //std::cout << "receive signal " << s << std::endl;
-    monitor.measure_hot_page_pctg(cores_g);
-    exit(1);
-}
+//void signal_handler(int s) {
+//    //std::cout << "receive signal " << s << std::endl;
+//    monitor.measure_hot_page_pctg(cores_g);
+//    exit(1);
+//}
 
 int main (int argc, char *argv[]) {
     ////Monitor monitor = Monitor();        // moved to global to make signal handler work
@@ -1008,11 +1008,11 @@ int main (int argc, char *argv[]) {
     }
 
     //// for easy test purposes
-    struct sigaction sigIntHandler;
-    sigIntHandler.sa_handler = signal_handler;
-    sigemptyset(&sigIntHandler.sa_mask);
-    sigIntHandler.sa_flags = 0;
-    sigaction(SIGINT, &sigIntHandler, NULL);
+//    struct sigaction sigIntHandler;
+//    sigIntHandler.sa_handler = signal_handler;
+//    sigemptyset(&sigIntHandler.sa_mask);
+//    sigIntHandler.sa_flags = 0;
+//    sigaction(SIGINT, &sigIntHandler, NULL);
     ////
 
     //monitor.measure_page_temp(cores_g);
