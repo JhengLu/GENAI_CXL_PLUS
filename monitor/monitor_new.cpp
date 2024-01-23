@@ -76,25 +76,25 @@ LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
 LatencyInfoPerProcess::~LatencyInfoPerProcess() {
 }
 
-//BWInfoPerCore::BWInfoPerCore(int cpu_id) {
-//    cpu_id = cpu_id;
-//    fd_offcore_all_reqs = -1;
-//    curr_count_offcore_all_reqs = 0;
-//    curr_bw = 0;
-//}
-//
-//BWInfoPerCore::~BWInfoPerCore() {
-//}
-//
-//PageTempInfoPerCore::PageTempInfoPerCore(int cpu_id, int num_events) {
-//    cpu_id = cpu_id;
-//    fds.resize(num_events, -1);
-//    perf_m_pages.resize(num_events, NULL);
-//}
-//
-//// TODO: consider calling munmap for perf pages
-//PageTempInfoPerCore::~PageTempInfoPerCore() {
-//}
+BWInfoPerCore::BWInfoPerCore(int cpu_id) {
+    cpu_id = cpu_id;
+    fd_offcore_all_reqs = -1;
+    curr_count_offcore_all_reqs = 0;
+    curr_bw = 0;
+}
+
+BWInfoPerCore::~BWInfoPerCore() {
+}
+
+PageTempInfoPerCore::PageTempInfoPerCore(int cpu_id, int num_events) {
+    cpu_id = cpu_id;
+    fds.resize(num_events, -1);
+    perf_m_pages.resize(num_events, NULL);
+}
+
+// TODO: consider calling munmap for perf pages
+PageTempInfoPerCore::~PageTempInfoPerCore() {
+}
 
 template<typename A, typename B>
 std::pair<B,A> flip_pair(const std::pair<A,B> &p)
