@@ -9,13 +9,29 @@
 #include <vector>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
+// verification:  https://stackoverflow.com/questions/16062244/using-perf-to-monitor-raw-event-counters
+
+//uncore,core, offcore: https://developer.aliyun.com/article/590519
+// https://perfmon-events.intel.com/index.html?pltfrm=skylake_server.html&evnt=UNC_CHA_TOR_OCCUPANCY.IA_MISS_DRD
+
+// instruction of uncore's config and config2:
+// https://lwn.net/Articles/370414/
+#define EVENT_TOR_OCCUPANCY_IA_MISS_DRD 0x2136UL
+#define EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
+#define EVENT_TOR_INSERTS_IA_MISS_DRD 0x2135UL
+#define EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
+
+#define CYCLE_ACTIVITY_CYCLES_L3_MISS 0x02A3UL
+#define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
+
+
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 #define EVENT_CAS_COUNT_RD 0x0304UL
 #define EVENT_CAS_COUNT_WR 0x0201UL
 #define EVENT_L1D_PEND_MISS_PENDING 0x0148UL
 #define EVENT_MEM_LOAD_RETIRED_L1_MISS 0x08D1UL
-#define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
+
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM 0x01D3UL
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM 0x02D3UL
 #define EVENT_OFFCORE_REQUESTS_ALL_REQUESTS 0x80B0
@@ -33,7 +49,7 @@
 #define PAGE_MASK ((PAGE_SIZE - 1) ^ UINT64_MAX)      // ~(PAGE_SIZE - 1)
 
 #define NUM_SOCKETS 2
-#define PROCESSOR_GHZ 2.4           // CloudLab c6420
+//#define PROCESSOR_GHZ 2.4           // CloudLab c6420
 #define NUM_CORES 64                // CloudLab c6420; include both sockets
 #define NUM_CORES_PER_SOCKET 32     // CloudLab c6420
 // TODO: make one of the core (local) exclusive for monitoring
@@ -66,6 +82,7 @@ class LatencyInfoPerCore {
     int fd_retired_l3_miss;
     uint64_t curr_count_l1d_pend_miss;
     uint64_t curr_count_retired_l3_miss;
+
 };
 
 class LatencyInfoPerProcess {
@@ -74,10 +91,10 @@ class LatencyInfoPerProcess {
     LatencyInfoPerProcess(int pid);
     ~LatencyInfoPerProcess();
     int pid;
-    int fd_l1d_pend_miss;
     int fd_retired_l3_miss;
-    uint64_t curr_count_l1d_pend_miss;
+    int fd_cycles_l3_miss;
     uint64_t curr_count_retired_l3_miss;
+    uint64_t curr_count_cycles_l3_miss;
 };
 
 class BWInfoPerCore {
@@ -121,6 +138,7 @@ class Monitor {
     void perf_event_reset(int fd);
     void perf_event_enable(int fd);
     void perf_event_disable(int fd);
+    int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id);
     int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     double sleep_ms(int time);
     
@@ -143,9 +161,9 @@ class Monitor {
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
     void perf_event_disable_process_latency(int pid);
-    void perf_event_read_process_latency(int pid, bool log_latency = false, ApplicationInfo *app_info = NULL);
-    void measure_process_latency(int pid);
-    void measure_process_latency(std::string proc_name);
+    void perf_event_read_process_latency(int pid, double GHZ, bool log_latency = false, ApplicationInfo *app_info = NULL);
+    void measure_process_latency(int pid, double GHZ);
+    void measure_process_latency(std::string proc_name, double GHZ);
     void measure_application_latency();
 
     void perf_event_setup_uncore_mem_bw(int opcode);
