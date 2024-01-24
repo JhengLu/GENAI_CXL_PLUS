@@ -433,7 +433,7 @@ int main (int argc, char *argv[]) {
             if (i + 1 < argc) { // Make sure there's an argument after --pid
                 processId = std::atoi(argv[i + 1]); // Convert the next argument to an integer
                 std::cout<<"pid: "<<processId<<std::endl;
-                break; // Exit the loop once we've found and processed --pid
+
             } else {
                 // Handle error: --pid flag is present, but no value is specified
                 std::cerr << "Error: --pid flag requires a value." << std::endl;
@@ -444,7 +444,7 @@ int main (int argc, char *argv[]) {
             if (i + 1 < argc) { // Make sure there's an argument after --pname
                 processName = argv[i + 1]; // Convert the next argument to an integer
                 std::cout<<"pname: "<<processName<<std::endl;
-                break; // Exit the loop once we've found and processed --pname
+
             } else {
                 // Handle error: --processid flag is present, but no value is specified
                 std::cerr << "Error: --pname flag requires a value." << std::endl;
@@ -459,7 +459,7 @@ int main (int argc, char *argv[]) {
                     return 1; // Exit with an error code
                 }
                 std::cout << "GHZ: " << ghz << std::endl;
-                break; // Exit the loop once we've found and processed --GHZ
+
             } else {
                 // Handle error: --GHZ flag is present, but no value is specified
                 std::cerr << "Error: --GHZ flag requires a numeric value." << std::endl;
