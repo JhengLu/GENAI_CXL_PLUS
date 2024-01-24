@@ -9,6 +9,7 @@
 #include <vector>
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
+// verification:  https://stackoverflow.com/questions/16062244/using-perf-to-monitor-raw-event-counters
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 #define EVENT_CAS_COUNT_RD 0x0304UL
@@ -33,7 +34,7 @@
 #define PAGE_MASK ((PAGE_SIZE - 1) ^ UINT64_MAX)      // ~(PAGE_SIZE - 1)
 
 #define NUM_SOCKETS 2
-#define PROCESSOR_GHZ 2.4           // CloudLab c6420
+//#define PROCESSOR_GHZ 2.4           // CloudLab c6420
 #define NUM_CORES 64                // CloudLab c6420; include both sockets
 #define NUM_CORES_PER_SOCKET 32     // CloudLab c6420
 // TODO: make one of the core (local) exclusive for monitoring
@@ -143,9 +144,9 @@ class Monitor {
     void perf_event_setup_process_latency(int pid);
     void perf_event_enable_process_latency(int pid);
     void perf_event_disable_process_latency(int pid);
-    void perf_event_read_process_latency(int pid, bool log_latency = false, ApplicationInfo *app_info = NULL);
-    void measure_process_latency(int pid);
-    void measure_process_latency(std::string proc_name);
+    void perf_event_read_process_latency(int pid, double GHZ, bool log_latency = false, ApplicationInfo *app_info = NULL);
+    void measure_process_latency(int pid, double GHZ);
+    void measure_process_latency(std::string proc_name, double GHZ);
     void measure_application_latency();
 
     void perf_event_setup_uncore_mem_bw(int opcode);

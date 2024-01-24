@@ -195,7 +195,9 @@ void Monitor::perf_event_reset(int fd) {
     }
 }
 
-void Monitor::perf_event_enable(int fd) {
+void Monitor::
+
+perf_event_enable(int fd) {
     int ret = ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
     if (ret < 0) {
         std::cout << "[Error] perf_event_enable: " << strerror(errno) << std::endl;
@@ -209,7 +211,16 @@ void Monitor::perf_event_disable(int fd) {
     }
 }
 
-//int perf_event_setup(int cpu, int pid, int group_fd, int sampling_period) {
+// precise_ip (since Linux 2.6.35)
+//              This controls the amount of skid.  Skid is how many instructions execute between an
+//              event of interest happening and the kernel being able to stop and record the event.
+//              Smaller  skid  is  better  and  allows  more  accurate  reporting  of  which events
+//              correspond to which instructions, but hardware is often limited with how small this
+//              can be.
+//
+//              The possible values of this field are the following:
+//
+//              0  SAMPLE_IP can have arbitrary skid.
 int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
     struct perf_event_attr event_attr;
     memset(&event_attr, 0, sizeof(event_attr));
@@ -257,9 +268,12 @@ void Monitor::perf_event_setup_process_latency(int pid) {
     auto latinfo = LatencyInfoPerProcess(pid);
     lat_info_process_[pid] = latinfo;
 
-    // pid == -1 and cpu >= 0： This measures all processes/threads on the specified CPU.
+    //  pid > 0 and cpu == -1   This measures the specified process/thread on any CPU.
     //The group_fd argument allows event groups to be created.  An event group has one event which is the group leader.  The leader is created first, with group_fd = -1.
 
+    // config: This  specifies  which  event  you  want,  in conjunction with the type field.
+    // If type is PERF_TYPE_RAW, then a custom "raw" config value is  needed.
+    // Most  CPUs support  events  that  are  not  covered  by  the  "generalized" events.  These are implementation defined; see your CPU  manual
     int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
     lat_info_process_[pid].fd_l1d_pend_miss = fd;
     perf_event_reset(fd);
@@ -279,7 +293,7 @@ void Monitor::perf_event_disable_process_latency(int pid) {
     perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
 }
 
-void Monitor::perf_event_read_process_latency(int pid, bool log_latency, ApplicationInfo *app_info) {
+void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_latency, ApplicationInfo *app_info) {
     uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
     read(lat_info_process_[pid].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
     read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
@@ -287,7 +301,7 @@ void Monitor::perf_event_read_process_latency(int pid, bool log_latency, Applica
                             / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
     lat_info_process_[pid].curr_count_l1d_pend_miss = count_l1d_pend_miss;
     lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
-    double latency_ns = latency_cycles / PROCESSOR_GHZ;
+    double latency_ns = latency_cycles / GHZ;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
     }
@@ -298,7 +312,7 @@ void Monitor::perf_event_read_process_latency(int pid, bool log_latency, Applica
     }
 }
 
-void Monitor::measure_process_latency(int pid) {
+void Monitor::measure_process_latency(int pid, double GHZ) {
     perf_event_setup_process_latency(pid);
 
     for (;;) {
@@ -307,11 +321,11 @@ void Monitor::measure_process_latency(int pid) {
         sleep_ms(sampling_period_ms_);
 
         perf_event_disable_process_latency(pid);
-        perf_event_read_process_latency(pid);
+        perf_event_read_process_latency(pid,GHZ);
     }
 }
 
-void Monitor::measure_process_latency(std::string proc_name) {
+void Monitor::measure_process_latency(std::string proc_name, double GHZ) {
     // get pid first via process name
     int pid = -1;
     bool found_pid = false;
@@ -334,7 +348,7 @@ void Monitor::measure_process_latency(std::string proc_name) {
         sleep_ms(sampling_period_ms_);
 
         perf_event_disable_process_latency(pid);
-        perf_event_read_process_latency(pid, true);
+        perf_event_read_process_latency(pid, GHZ);
 
         if (get_pid_from_proc_name(proc_name) == -1) {
             process_exists = false;
@@ -403,15 +417,12 @@ int main (int argc, char *argv[]) {
         cores_g.push_back(i);
     }
 
-    //// for easy test purposes
-//    struct sigaction sigIntHandler;
-//    sigIntHandler.sa_handler = signal_handler;
-//    sigemptyset(&sigIntHandler.sa_mask);
-//    sigIntHandler.sa_flags = 0;
-//    sigaction(SIGINT, &sigIntHandler, NULL);
-    ////
+    // Adding a variable for GHZ
+    double ghz = -1.0; // Default to an invalid value
 
-    //monitor.measure_page_temp(cores_g);
+
+
+
 
     int processId = -1; // Default to an invalid process ID
     std::string processName = "";
@@ -440,12 +451,33 @@ int main (int argc, char *argv[]) {
                 return 1; // Exit with an error code
             }
         }
+        else if (strcmp(argv[i], "--GHZ") == 0) {
+            if (i + 1 < argc) { // Make sure there's an argument after --GHZ
+                ghz = std::atof(argv[i + 1]); // Convert the next argument to a double
+                if (ghz <= 0.0) {
+                    std::cerr << "Error: Invalid value for --GHZ. Must be a positive number." << std::endl;
+                    return 1; // Exit with an error code
+                }
+                std::cout << "GHZ: " << ghz << std::endl;
+                break; // Exit the loop once we've found and processed --GHZ
+            } else {
+                // Handle error: --GHZ flag is present, but no value is specified
+                std::cerr << "Error: --GHZ flag requires a numeric value." << std::endl;
+                return 1; // Exit with an error code
+            }
+        }
+    }
+
+    // Check if GHZ value was provided
+    if (ghz == -1.0) {
+        std::cerr << "Error: --GHZ argument is required. use lscpu | grep CPU to find the value" << std::endl;
+        return 1; // Exit with an error code
     }
 
     if (processId > -1) {
-        monitor.measure_process_latency(processId);
+        monitor.measure_process_latency(processId,ghz);
     } else if (!processName.empty()) {
-        monitor.measure_process_latency(processName);
+        monitor.measure_process_latency(processName,ghz);
     } else {
         std::cerr << "No valid process identifier provided." << std::endl;
         return 1;
@@ -456,18 +488,6 @@ int main (int argc, char *argv[]) {
     //monitor.measure_process_latency("redis-server");
     //monitor.measure_process_latency("bc");
 
-    //std::set<int> node1_cores = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61};
-    //monitor.measure_cores_latency(node1_cores);
-
-    //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq");
-    //monitor.add_application(app_info_1);
-
-    //ApplicationInfo *app_info_1 = new ApplicationInfo("test_page_freq_local");
-    //ApplicationInfo *app_info_2 = new ApplicationInfo("test_page_freq_remote");
-    //monitor.add_application(app_info_1);
-    //monitor.add_application(app_info_2);
-
-    //monitor.measure_application_latency();
 
 }
 
