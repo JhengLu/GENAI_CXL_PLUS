@@ -304,6 +304,13 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
     //lat_info_process_[pid].curr_count_occupancy_ia_miss = count_l1d_pend_miss;
     //lat_info_process_[pid].curr_count_inserts_ia_miss = count_retired_l3_miss;
     // double latency_ns = latency_cycles / GHZ;
+
+    if (count_inserts_ia_miss == 0) {
+        std::cerr << "Error: Division by zero in calculating latency_ns." << std::endl;
+        return;
+    }
+
+
     double latency_ns = count_occupancy_ia_miss / count_inserts_ia_miss;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
