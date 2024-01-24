@@ -338,7 +338,7 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
         return;
     }*/
     //TODO: check if we need to minus the curr_count_cycles_l3_miss
-    double latency_cycles = count_cycles_l3_miss - lat_info_process_[pid].curr_count_cycles_l3_miss
+    double latency_cycles = count_cycles_l3_miss - lat_info_process_[pid].curr_count_cycles_l3_miss;
     double latency_ns = latency_cycles / GHZ;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);

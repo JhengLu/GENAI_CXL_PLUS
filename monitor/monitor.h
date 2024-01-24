@@ -141,6 +141,7 @@ class Monitor {
     void perf_event_enable(int fd);
     void perf_event_disable(int fd);
     int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id);
+    int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
     double sleep_ms(int time);
     
     int get_pid_from_proc_name(std::string proc_name);
