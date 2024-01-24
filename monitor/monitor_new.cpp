@@ -225,23 +225,23 @@ void Monitor::perf_event_disable(int fd) {
 //              The possible values of this field are the following:
 //
 //              0  SAMPLE_IP can have arbitrary skid.
-int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id) {
-    struct perf_event_attr event_attr;
-    memset(&event_attr, 0, sizeof(event_attr));
-    event_attr.type = type;
-    event_attr.size = sizeof(event_attr);
-    event_attr.config = event_id;
-    event_attr.config1 = extension_event_id;
-    event_attr.disabled = 1;
-    event_attr.inherit = 1;     // includes child process
-    event_attr.precise_ip = 0;
-
-    int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
-    if (ret < 0) {
-        std::cout << "[Error] perf_event_open: " << strerror(errno) << std::endl;
-    }
-    return ret;
-}
+//int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id) {
+//    struct perf_event_attr event_attr;
+//    memset(&event_attr, 0, sizeof(event_attr));
+//    event_attr.type = type;
+//    event_attr.size = sizeof(event_attr);
+//    event_attr.config = event_id;
+//    event_attr.config1 = extension_event_id;
+//    event_attr.disabled = 1;
+//    event_attr.inherit = 1;     // includes child process
+//    event_attr.precise_ip = 0;
+//
+//    int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
+//    if (ret < 0) {
+//        std::cout << "[Error] perf_event_open: " << strerror(errno) << std::endl;
+//    }
+//    return ret;
+//}
 
 int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
     struct perf_event_attr event_attr;
@@ -307,7 +307,7 @@ void Monitor::perf_event_setup_process_latency(int pid) {
 //    perf_event_reset(fd);
 
     int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, CYCLE_ACTIVITY_CYCLES_L3_MISS);
-    lat_info_process_[pid].fd_occupancy_ia_miss = fd;
+    lat_info_process_[pid].fd_cycles_l3_miss = fd;
     perf_event_reset(fd);
 
 }
