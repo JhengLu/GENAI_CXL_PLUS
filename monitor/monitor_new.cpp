@@ -355,9 +355,9 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
     } else {
         std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
     }
-    std::cout << "count_cycles_l3_miss: "<<count_cycles_l3_miss<<endl;
-    std::cout << "count_retired_l3_miss: "<<count_retired_l3_misss<<endl;
-    std::cout<<endl;
+    std::cout << "count_cycles_l3_miss: "<<count_cycles_l3_miss<<std::endl;
+    std::cout << "count_retired_l3_miss: "<<count_retired_l3_miss<<std::endl;
+    std::cout<<std::endl;
 }
 
 void Monitor::measure_process_latency(int pid, double GHZ) {
