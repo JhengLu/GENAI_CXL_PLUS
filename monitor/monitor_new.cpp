@@ -182,7 +182,7 @@ void Monitor::add_application(ApplicationInfo *app_info) {
 
     // update the core list to monitor b/w
     for (const auto &c : app_info->bw_cores) {
-        if (bw_core_list_.contains(c)) {
+        if (bw_core_list_.count(c)) {
             std::cout << "[Error] add_application: bw core (" << c
                       << ") already exists in monitor's bw core list" << std::endl;
         }
