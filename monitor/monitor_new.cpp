@@ -305,7 +305,8 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
     //lat_info_process_[pid].curr_count_occupancy_ia_miss = count_l1d_pend_miss;
     //lat_info_process_[pid].curr_count_inserts_ia_miss = count_retired_l3_miss;
     // double latency_ns = latency_cycles / GHZ;
-
+    cout<<"fd_occupancy_ia_miss: " << count_occupancy_ia_miss<<endl;
+    cout<<"fd_inserts_ia_miss: "<<count_inserts_ia_miss<<endl;
     if (count_inserts_ia_miss == 0) {
         std::cerr << "Error: Division by zero in calculating latency_ns." << std::endl;
         return;
