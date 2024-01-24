@@ -69,11 +69,9 @@ LatencyInfoPerProcess::LatencyInfoPerProcess() {
 
 LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
     pid = pid;
-    fd_occupancy_ia_miss = -1;
-    fd_inserts_ia_miss = -1;
+    fd_retired_l3_miss = -1;
     fd_cycles_l3_miss = -1;
-    curr_count_occupancy_ia_miss = 0;
-    curr_count_inserts_ia_miss = 0;
+    curr_count_cycles_l3_miss = 0;
     curr_count_cycles_l3_miss = 0;
 }
 
