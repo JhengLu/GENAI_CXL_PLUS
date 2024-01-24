@@ -59,18 +59,20 @@ LatencyInfoPerCore::~LatencyInfoPerCore() {
 
 LatencyInfoPerProcess::LatencyInfoPerProcess() {
     pid = -1;
-    fd_l1d_pend_miss = -1;
-    fd_retired_l3_miss = -1;
-    curr_count_l1d_pend_miss = 0;
-    curr_count_retired_l3_miss = 0;
+    fd_occupancy_ia_miss = -1;
+    fd_inserts_ia_miss = -1;
+    curr_count_occupancy_ia_miss = 0;
+    curr_count_inserts_ia_miss = 0;
 }
+
+
 
 LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
     pid = pid;
-    fd_l1d_pend_miss = -1;
-    fd_retired_l3_miss = -1;
-    curr_count_l1d_pend_miss = 0;
-    curr_count_retired_l3_miss = 0;
+    fd_occupancy_ia_miss = -1;
+    fd_inserts_ia_miss = -1;
+    curr_count_occupancy_ia_miss = 0;
+    curr_count_inserts_ia_miss = 0;
 }
 
 LatencyInfoPerProcess::~LatencyInfoPerProcess() {
@@ -274,34 +276,35 @@ void Monitor::perf_event_setup_process_latency(int pid) {
     // config: This  specifies  which  event  you  want,  in conjunction with the type field.
     // If type is PERF_TYPE_RAW, then a custom "raw" config value is  needed.
     // Most  CPUs support  events  that  are  not  covered  by  the  "generalized" events.  These are implementation defined; see your CPU  manual
-    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_L1D_PEND_MISS_PENDING);
-    lat_info_process_[pid].fd_l1d_pend_miss = fd;
+    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_OCCUPANCY_IA_MISS_DRD);
+    lat_info_process_[pid].fd_occupancy_ia_miss = fd;
     perf_event_reset(fd);
 
-    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
-    lat_info_process_[pid].fd_retired_l3_miss = fd;
+    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_INSERTS_IA_MISS_DRD);
+    lat_info_process_[pid].fd_inserts_ia_miss = fd;
     perf_event_reset(fd);
 }
 
 void Monitor::perf_event_enable_process_latency(int pid) {
-    perf_event_enable(lat_info_process_[pid].fd_l1d_pend_miss);
-    perf_event_enable(lat_info_process_[pid].fd_retired_l3_miss);
+    perf_event_enable(lat_info_process_[pid].fd_occupancy_ia_miss);
+    perf_event_enable(lat_info_process_[pid].fd_inserts_ia_miss);
 }
 
 void Monitor::perf_event_disable_process_latency(int pid) {
-    perf_event_disable(lat_info_process_[pid].fd_l1d_pend_miss);
-    perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
+    perf_event_disable(lat_info_process_[pid].fd_occupancy_ia_miss);
+    perf_event_disable(lat_info_process_[pid].fd_inserts_ia_miss);
 }
 
 void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_latency, ApplicationInfo *app_info) {
-    uint64_t count_l1d_pend_miss = 0, count_retired_l3_miss = 0;
-    read(lat_info_process_[pid].fd_l1d_pend_miss, &count_l1d_pend_miss, sizeof(count_l1d_pend_miss));
-    read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
-    double latency_cycles = (double) (count_l1d_pend_miss - lat_info_process_[pid].curr_count_l1d_pend_miss)
-                            / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
-    lat_info_process_[pid].curr_count_l1d_pend_miss = count_l1d_pend_miss;
-    lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
-    double latency_ns = latency_cycles / GHZ;
+    uint64_t count_occupancy_ia_miss = 0, count_inserts_ia_miss = 0;
+    read(lat_info_process_[pid].fd_occupancy_ia_miss, &count_occupancy_ia_miss, sizeof(count_occupancy_ia_miss));
+    read(lat_info_process_[pid].fd_inserts_ia_miss, &count_inserts_ia_miss, sizeof(count_inserts_ia_miss));
+    //double latency_cycles = (double) (count_l1d_pend_miss - lat_info_process_[pid].curr_count_l1d_pend_miss)
+     //                       / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
+    //lat_info_process_[pid].curr_count_occupancy_ia_miss = count_l1d_pend_miss;
+    //lat_info_process_[pid].curr_count_inserts_ia_miss = count_retired_l3_miss;
+    // double latency_ns = latency_cycles / GHZ;
+    double latency_ns = count_occupancy_ia_miss / count_inserts_ia_miss;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
     }

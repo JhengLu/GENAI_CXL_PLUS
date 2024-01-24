@@ -10,6 +10,10 @@
 
 // Event ID: UMask + EventSel. (https://perfmon-events.intel.com/skylake_server.html)
 // verification:  https://stackoverflow.com/questions/16062244/using-perf-to-monitor-raw-event-counters
+
+//uncore,core, offcore: https://developer.aliyun.com/article/590519
+#define EVENT_TOR_OCCUPANCY_IA_MISS_DRD 0x2136UL
+#define EVENT_TOR_INSERTS_IA_MISS_DRD 0x2135UL
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 #define EVENT_CAS_COUNT_RD 0x0304UL
@@ -75,10 +79,10 @@ class LatencyInfoPerProcess {
     LatencyInfoPerProcess(int pid);
     ~LatencyInfoPerProcess();
     int pid;
-    int fd_l1d_pend_miss;
-    int fd_retired_l3_miss;
-    uint64_t curr_count_l1d_pend_miss;
-    uint64_t curr_count_retired_l3_miss;
+    int fd_occupancy_ia_miss;
+    int fd_inserts_ia_miss;
+    uint64_t curr_count_occupancy_ia_miss;
+    uint64_t curr_count_inserts_ia_miss;
 };
 
 class BWInfoPerCore {
