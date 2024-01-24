@@ -71,8 +71,10 @@ LatencyInfoPerProcess::LatencyInfoPerProcess(int pid) {
     pid = pid;
     fd_occupancy_ia_miss = -1;
     fd_inserts_ia_miss = -1;
+    fd_cycles_l3_miss = -1;
     curr_count_occupancy_ia_miss = 0;
     curr_count_inserts_ia_miss = 0;
+    curr_count_cycles_l3_miss = 0;
 }
 
 LatencyInfoPerProcess::~LatencyInfoPerProcess() {
@@ -241,6 +243,25 @@ int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uin
     return ret;
 }
 
+int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
+    struct perf_event_attr event_attr;
+    memset(&event_attr, 0, sizeof(event_attr));
+    event_attr.type = type;
+    event_attr.size = sizeof(event_attr);
+    event_attr.config = event_id;
+    event_attr.disabled = 1;
+    event_attr.inherit = 1;     // includes child process
+    event_attr.precise_ip = 0;
+
+    int ret = perf_event_open(&event_attr, pid, cpu, group_fd, 0);
+    if (ret < 0) {
+        std::cout << "[Error] perf_event_open: " << strerror(errno) << std::endl;
+    }
+    return ret;
+}
+
+
+
 double Monitor::sleep_ms(int time) {
     auto start = std::chrono::high_resolution_clock::now();
     std::this_thread::sleep_for(std::chrono::milliseconds(sampling_period_ms_));
@@ -277,43 +298,48 @@ void Monitor::perf_event_setup_process_latency(int pid) {
     // config: This  specifies  which  event  you  want,  in conjunction with the type field.
     // If type is PERF_TYPE_RAW, then a custom "raw" config value is  needed.
     // Most  CPUs support  events  that  are  not  covered  by  the  "generalized" events.  These are implementation defined; see your CPU  manual
-    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_OCCUPANCY_IA_MISS_DRD, EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
+//    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_OCCUPANCY_IA_MISS_DRD, EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
+//    lat_info_process_[pid].fd_occupancy_ia_miss = fd;
+//    perf_event_reset(fd);
+//
+//    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_INSERTS_IA_MISS_DRD, EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
+//    lat_info_process_[pid].fd_inserts_ia_miss = fd;
+//    perf_event_reset(fd);
+
+    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, CYCLE_ACTIVITY_CYCLES_L3_MISS);
     lat_info_process_[pid].fd_occupancy_ia_miss = fd;
     perf_event_reset(fd);
 
-    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_INSERTS_IA_MISS_DRD, EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
-    lat_info_process_[pid].fd_inserts_ia_miss = fd;
-    perf_event_reset(fd);
 }
 
 void Monitor::perf_event_enable_process_latency(int pid) {
-    perf_event_enable(lat_info_process_[pid].fd_occupancy_ia_miss);
-    perf_event_enable(lat_info_process_[pid].fd_inserts_ia_miss);
+    perf_event_enable(lat_info_process_[pid].fd_cycles_l3_miss);
+    //perf_event_enable(lat_info_process_[pid].fd_inserts_ia_miss);
 }
 
 void Monitor::perf_event_disable_process_latency(int pid) {
-    perf_event_disable(lat_info_process_[pid].fd_occupancy_ia_miss);
-    perf_event_disable(lat_info_process_[pid].fd_inserts_ia_miss);
+    perf_event_disable(lat_info_process_[pid].fd_cycles_l3_miss);
+    //perf_event_disable(lat_info_process_[pid].fd_inserts_ia_miss);
 }
 
 void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_latency, ApplicationInfo *app_info) {
-    uint64_t count_occupancy_ia_miss = 0, count_inserts_ia_miss = 0;
-    read(lat_info_process_[pid].fd_occupancy_ia_miss, &count_occupancy_ia_miss, sizeof(count_occupancy_ia_miss));
-    read(lat_info_process_[pid].fd_inserts_ia_miss, &count_inserts_ia_miss, sizeof(count_inserts_ia_miss));
+    uint64_t count_occupancy_ia_miss = 0, count_inserts_ia_miss = 0, count_cycles_l3_miss=0;
+    read(lat_info_process_[pid].fd_cycles_l3_miss, &count_cycles_l3_miss, sizeof(count_cycles_l3_miss));
+    //read(lat_info_process_[pid].fd_inserts_ia_miss, &count_inserts_ia_miss, sizeof(count_inserts_ia_miss));
     //double latency_cycles = (double) (count_l1d_pend_miss - lat_info_process_[pid].curr_count_l1d_pend_miss)
      //                       / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
     //lat_info_process_[pid].curr_count_occupancy_ia_miss = count_l1d_pend_miss;
     //lat_info_process_[pid].curr_count_inserts_ia_miss = count_retired_l3_miss;
     // double latency_ns = latency_cycles / GHZ;
-    std::cout<<"fd_occupancy_ia_miss: " << count_occupancy_ia_miss<<std::endl;
+    /*std::cout<<"fd_occupancy_ia_miss: " << count_occupancy_ia_miss<<std::endl;
     std::cout<<"fd_inserts_ia_miss: "<<count_inserts_ia_miss<<std::endl;
     if (count_inserts_ia_miss == 0) {
         std::cerr << "Error: Division by zero in calculating latency_ns." << std::endl;
         return;
-    }
-
-
-    double latency_ns = count_occupancy_ia_miss / count_inserts_ia_miss;
+    }*/
+    //TODO: check if we need to minus the curr_count_cycles_l3_miss
+    double latency_cycles = count_cycles_l3_miss - lat_info_process_[pid].curr_count_cycles_l3_miss
+    double latency_ns = latency_cycles / GHZ;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
     }

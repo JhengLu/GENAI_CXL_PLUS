@@ -14,10 +14,16 @@
 //uncore,core, offcore: https://developer.aliyun.com/article/590519
 // https://perfmon-events.intel.com/index.html?pltfrm=skylake_server.html&evnt=UNC_CHA_TOR_OCCUPANCY.IA_MISS_DRD
 
+// instruction of uncore's config and config2:
+// https://lwn.net/Articles/370414/
 #define EVENT_TOR_OCCUPANCY_IA_MISS_DRD 0x2136UL
 #define EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
 #define EVENT_TOR_INSERTS_IA_MISS_DRD 0x2135UL
 #define EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
+
+#define CYCLE_ACTIVITY_CYCLES_L3_MISS 0x02A3UL
+
+
 
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
@@ -76,6 +82,7 @@ class LatencyInfoPerCore {
     int fd_retired_l3_miss;
     uint64_t curr_count_l1d_pend_miss;
     uint64_t curr_count_retired_l3_miss;
+
 };
 
 class LatencyInfoPerProcess {
@@ -86,8 +93,10 @@ class LatencyInfoPerProcess {
     int pid;
     int fd_occupancy_ia_miss;
     int fd_inserts_ia_miss;
+    int fd_cycles_l3_miss;
     uint64_t curr_count_occupancy_ia_miss;
     uint64_t curr_count_inserts_ia_miss;
+    uint64_t curr_count_cycles_l3_miss;
 };
 
 class BWInfoPerCore {
