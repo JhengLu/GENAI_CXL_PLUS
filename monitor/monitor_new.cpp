@@ -310,22 +310,27 @@ void Monitor::perf_event_setup_process_latency(int pid) {
     lat_info_process_[pid].fd_cycles_l3_miss = fd;
     perf_event_reset(fd);
 
+    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_MEM_LOAD_RETIRED_L3_MISS);
+    lat_info_process_[pid].fd_retired_l3_miss = fd;
+    perf_event_reset(fd);
+
+
 }
 
 void Monitor::perf_event_enable_process_latency(int pid) {
     perf_event_enable(lat_info_process_[pid].fd_cycles_l3_miss);
-    //perf_event_enable(lat_info_process_[pid].fd_inserts_ia_miss);
+    perf_event_enable(lat_info_process_[pid].fd_retired_l3_miss);
 }
 
 void Monitor::perf_event_disable_process_latency(int pid) {
     perf_event_disable(lat_info_process_[pid].fd_cycles_l3_miss);
-    //perf_event_disable(lat_info_process_[pid].fd_inserts_ia_miss);
+    perf_event_disable(lat_info_process_[pid].fd_retired_l3_miss);
 }
 
 void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_latency, ApplicationInfo *app_info) {
-    uint64_t count_occupancy_ia_miss = 0, count_inserts_ia_miss = 0, count_cycles_l3_miss=0;
+    uint64_t count_cycles_l3_miss=0, count_retired_l3_miss=0;
     read(lat_info_process_[pid].fd_cycles_l3_miss, &count_cycles_l3_miss, sizeof(count_cycles_l3_miss));
-    //read(lat_info_process_[pid].fd_inserts_ia_miss, &count_inserts_ia_miss, sizeof(count_inserts_ia_miss));
+    read(lat_info_process_[pid].fd_retired_l3_miss, &count_retired_l3_miss, sizeof(count_retired_l3_miss));
     //double latency_cycles = (double) (count_l1d_pend_miss - lat_info_process_[pid].curr_count_l1d_pend_miss)
      //                       / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
     //lat_info_process_[pid].curr_count_occupancy_ia_miss = count_l1d_pend_miss;
@@ -337,8 +342,10 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
         std::cerr << "Error: Division by zero in calculating latency_ns." << std::endl;
         return;
     }*/
-    //TODO: check if we need to minus the curr_count_cycles_l3_miss
-    double latency_cycles = count_cycles_l3_miss - lat_info_process_[pid].curr_count_cycles_l3_miss;
+
+    double latency_cycles = (double) (count_cycles_l3_miss - lat_info_process_[pid].curr_count_cycles_l3_miss) / (count_retired_l3_miss - lat_info_process_[pid].curr_count_retired_l3_miss);
+    lat_info_process_[pid].curr_count_cycles_l3_miss = count_cycles_l3_miss;
+    lat_info_process_[pid].curr_count_retired_l3_miss = count_retired_l3_miss;
     double latency_ns = latency_cycles / GHZ;
     if (log_latency) {
         sampled_process_lat_.push_back(latency_ns);
@@ -348,6 +355,9 @@ void Monitor::perf_event_read_process_latency(int pid, double GHZ, bool log_late
     } else {
         std::cout << "process [" << pid << "]: latency = " << latency_ns << " ns" << std::endl;
     }
+    std::cout << "count_cycles_l3_miss: "<<count_cycles_l3_miss<<endl;
+    std::cout << "count_retired_l3_miss: "<<count_retired_l3_misss<<endl;
+    std::cout<<endl;
 }
 
 void Monitor::measure_process_latency(int pid, double GHZ) {

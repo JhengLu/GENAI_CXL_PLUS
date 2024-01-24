@@ -22,7 +22,7 @@
 #define EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
 
 #define CYCLE_ACTIVITY_CYCLES_L3_MISS 0x02A3UL
-
+#define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
 
 
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
@@ -31,7 +31,7 @@
 #define EVENT_CAS_COUNT_WR 0x0201UL
 #define EVENT_L1D_PEND_MISS_PENDING 0x0148UL
 #define EVENT_MEM_LOAD_RETIRED_L1_MISS 0x08D1UL
-#define EVENT_MEM_LOAD_RETIRED_L3_MISS 0x20D1UL
+
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_LOCAL_DRAM 0x01D3UL
 #define EVENT_MEM_LOAD_L3_MISS_RETIRED_REMOTE_DRAM 0x02D3UL
 #define EVENT_OFFCORE_REQUESTS_ALL_REQUESTS 0x80B0
@@ -91,11 +91,9 @@ class LatencyInfoPerProcess {
     LatencyInfoPerProcess(int pid);
     ~LatencyInfoPerProcess();
     int pid;
-    int fd_occupancy_ia_miss;
-    int fd_inserts_ia_miss;
+    int fd_retired_l3_miss;
     int fd_cycles_l3_miss;
-    uint64_t curr_count_occupancy_ia_miss;
-    uint64_t curr_count_inserts_ia_miss;
+    uint64_t curr_count_retired_l3_miss;
     uint64_t curr_count_cycles_l3_miss;
 };
 
