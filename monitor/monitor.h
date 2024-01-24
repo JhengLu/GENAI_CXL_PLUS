@@ -12,8 +12,13 @@
 // verification:  https://stackoverflow.com/questions/16062244/using-perf-to-monitor-raw-event-counters
 
 //uncore,core, offcore: https://developer.aliyun.com/article/590519
+// https://perfmon-events.intel.com/index.html?pltfrm=skylake_server.html&evnt=UNC_CHA_TOR_OCCUPANCY.IA_MISS_DRD
+
 #define EVENT_TOR_OCCUPANCY_IA_MISS_DRD 0x2136UL
+#define EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
 #define EVENT_TOR_INSERTS_IA_MISS_DRD 0x2135UL
+#define EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1 0x40433UL
+
 #define EVENT_RxC_OCCUPANCY_IRQ 0x0111UL
 #define EVENT_RxC_INSERTS_IRQ 0x0113UL
 #define EVENT_CAS_COUNT_RD 0x0304UL
@@ -126,7 +131,7 @@ class Monitor {
     void perf_event_reset(int fd);
     void perf_event_enable(int fd);
     void perf_event_disable(int fd);
-    int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id);
+    int perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id);
     double sleep_ms(int time);
     
     int get_pid_from_proc_name(std::string proc_name);

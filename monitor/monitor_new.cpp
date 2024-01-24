@@ -223,12 +223,13 @@ void Monitor::perf_event_disable(int fd) {
 //              The possible values of this field are the following:
 //
 //              0  SAMPLE_IP can have arbitrary skid.
-int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id) {
+int Monitor::perf_event_setup(int pid, int cpu, int group_fd, uint32_t type, uint64_t event_id, uint64_t extension_event_id) {
     struct perf_event_attr event_attr;
     memset(&event_attr, 0, sizeof(event_attr));
     event_attr.type = type;
     event_attr.size = sizeof(event_attr);
     event_attr.config = event_id;
+    event_attr.config1 = extension_event_id
     event_attr.disabled = 1;
     event_attr.inherit = 1;     // includes child process
     event_attr.precise_ip = 0;
@@ -276,11 +277,11 @@ void Monitor::perf_event_setup_process_latency(int pid) {
     // config: This  specifies  which  event  you  want,  in conjunction with the type field.
     // If type is PERF_TYPE_RAW, then a custom "raw" config value is  needed.
     // Most  CPUs support  events  that  are  not  covered  by  the  "generalized" events.  These are implementation defined; see your CPU  manual
-    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_OCCUPANCY_IA_MISS_DRD);
+    int fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_OCCUPANCY_IA_MISS_DRD, EVENT_TOR_OCCUPANCY_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
     lat_info_process_[pid].fd_occupancy_ia_miss = fd;
     perf_event_reset(fd);
 
-    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_INSERTS_IA_MISS_DRD);
+    fd = perf_event_setup(pid, -1, -1, PERF_TYPE_RAW, EVENT_TOR_INSERTS_IA_MISS_DRD, EVENT_TOR_INSERTS_IA_MISS_DRD_Cn_MSR_PMON_BOX_FILTER1);
     lat_info_process_[pid].fd_inserts_ia_miss = fd;
     perf_event_reset(fd);
 }
