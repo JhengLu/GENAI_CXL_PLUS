@@ -1,2 +1,2 @@
-# MercuryMotivation
-This repo stores the scripts for Mercury
+# Scripts
+This directory stores the scripts for dealing data
