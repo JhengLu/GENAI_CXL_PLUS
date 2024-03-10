@@ -1,0 +1,3 @@
+faiss-cpu
+packaging
+autofaiss
