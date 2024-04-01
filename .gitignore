@@ -1,3 +1,7 @@
 .vscode
 .DS_Store
+.venv
 vectordb/tmp_idx/*
+vectordb/tmp_centroids/*
+vectordb/default_dataset.npy
+vectordb/tmp.py
