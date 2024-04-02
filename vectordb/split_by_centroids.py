@@ -18,26 +18,27 @@ if __name__ == "__main__":
     dataset = np.load(args.dataset)
 
     kmeans = KMeans(n_clusters=k, random_state=0, n_init="auto").fit(dataset)
-    print(kmeans.labels_)
-    print(kmeans.cluster_centers_)
 
     center_to_data = defaultdict(list)
     for center, item in zip(kmeans.labels_, dataset):
         center_to_data[center].append(item)
     
+
+    # Save pre-index files
+    if not os.path.isdir(args.path):
+        print(f'Error: The path provided "{args.path}" does not exist or is not a directory.')
+
     for center, group in center_to_data.items():
         print(f"{center}: {group}")
 
-        if os.path.isdir(args.path):
-            # Construct the complete path by joining the path with the filename
-            full_file_path = os.path.join(args.path, f'{args.outfile_prefix}{center}.npy')
+        # Construct the complete path by joining the path with the filename
+        full_file_path = os.path.join(args.path, f'{args.outfile_prefix}{center}.npy')
 
-            # Save the file
-            np.save(full_file_path, group)
-            print(f'File saved successfully to {full_file_path}')
-        else:
-            print(f'Error: The path provided "{args.path}" does not exist or is not a directory.')
+        # Save the file
+        np.save(full_file_path, group)
+        print(f'Group {center} saved successfully to {full_file_path}')
 
+    # Save context file
     context_path = os.path.join(args.path, f'{args.outfile_prefix}context.npy')
     np.save(context_path, kmeans.cluster_centers_)
 
