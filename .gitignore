@@ -2,6 +2,7 @@
 .DS_Store
 .venv
 vectordb/tmp_idx/*
+vectordb/shards/*
 vectordb/tmp_centroids/*
 vectordb/default_dataset.npy
 vectordb/tmp.py
