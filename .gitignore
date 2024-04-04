@@ -1,3 +1,4 @@
 .vscode
 .DS_Store
 vectordb/tmp_idx/*
+vectordb/shards/*
