@@ -29,14 +29,21 @@ def batch_query_index(index, queries, k, batch_size=1000):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Query shard index for vector database")
-    parser.add_argument("-idx", "--idx_root", required=True, default="shards/idxs/", help="dir to index files", type=str,)
-    parser.add_argument("-np", "--nprobe", default=10, help="a small number (nprobe) of subsets to visit", type=int)
+    parser.add_argument("-idx", "--idx_root", required=False, default="shards/idxs/", help="dir to index files", type=str,)
+    parser.add_argument("-np", "--nprobe", default=10, help="a small number (nprobe) of subsets to visit", type=int,)
     args = parser.parse_args()
 
     # args
     index_root = args.idx_root
     nprobe = args.nprobe
-    idx_paths = [os.path.join(index_root, f) for f in os.listdir(index_root)]
+    # idx_paths = [os.path.join(index_root, f) for f in os.listdir(index_root)]
+    idx_paths = []
+    centriod_idx_paths = ""
+    for f in os.listdir(index_root):
+        if "centroid" in f:
+            centriod_idx_paths = os.path.join(index_root, f)
+        else:
+            idx_paths.append(os.path.join(index_root, f))
 
 
     # some initializations
@@ -50,6 +57,16 @@ if __name__ == "__main__":
 
     # knn find top centroids
     idx_k = (k // nprobe) + k
+
+    D, I = query_index_file(centriod_idx_paths, queries, nprobe)
+    print(I)
+    print(I.shape)
+
+    # convert I to idx_paths: embeds_{idx}.index, do NOT change dimension
+
+
+    exit()
+
     # for now randomly select index file to visit
     idxs = list(np.random.choice(idx_paths, nprobe, replace=False))
 
