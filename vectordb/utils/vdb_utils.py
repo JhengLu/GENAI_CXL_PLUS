@@ -1,6 +1,12 @@
+'''
+This file contains utility functions for VectorDB.
+'''
 
-import numpy as np
 import faiss
+import numpy as np
+
+# fix random seed
+np.random.seed(0)
 
 def random_floats(size, low=0, high=1):
     return [np.random.uniform(low, high) for _ in range(size)]
@@ -28,12 +34,14 @@ def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=0, high=
     # compute the number of queries for each distribution
     if mixtures_ratio == 0: 
         random_mean = random_floats(1, low, high)[0]
-        random_std = random_floats(1, low, high)[0]
+        # random_std = random_floats(1, low, high)[0]
+        random_std = [0.3]
         return random_normal_vectors(num_queries, dim, random_mean, random_std)
     elif mixtures_ratio == 1:
         for i in range(num_queries):
             random_mean = random_floats(1, low, high)[0]
-            random_std = random_floats(1, low, high)[0]
+            # random_std = random_floats(1, low, high)[0]
+            random_std = [0.3]
             queries[i] = random_normal_vectors(1, dim, random_mean, random_std)
         return queries
     else:
@@ -42,7 +50,8 @@ def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=0, high=
         for i in range(num_queries):
             if i % sample_size == 0:
                 random_mean = random_floats(1, low, high)[0]
-                random_std = random_floats(1, low, high)[0]
+                # random_std = random_floats(1, low, high)[0]
+                random_std = [0.3]
                 # print(random_mean)
             queries[i] = random_normal_vectors(1, dim, random_mean, random_std)
     return queries
@@ -73,14 +82,6 @@ def save_index(index, index_path):
 # load index
 def load_index(index_path):
     return faiss.read_index(index_path)
-
-# KNN search
-def create_flat_index(data):
-    # data = load_npy(npy_path)
-    dim = data.shape[1]
-    index = faiss.IndexFlatL2(dim)
-    index.add(data)
-    return index
 
 # query index
 def query_index(index, queries, k):

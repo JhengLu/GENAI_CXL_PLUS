@@ -6,6 +6,9 @@ from sklearn.cluster import KMeans
 import numpy as np
 # import pandas as pd
 
+# fix random seed
+np.random.seed(0)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Split dataset by centroids")
 
@@ -22,7 +25,6 @@ if __name__ == "__main__":
     center_to_data = defaultdict(list)
     for center, item in zip(kmeans.labels_, dataset):
         center_to_data[center].append(item)
-    
 
     # Save pre-index files
     if not os.path.isdir(args.path):
