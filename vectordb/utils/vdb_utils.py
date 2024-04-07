@@ -15,7 +15,7 @@ def random_normal_vectors(num_embeds, dim, mean=0, std=1):
     data = np.random.normal(mean, std, (num_embeds, dim)).astype('float32')
     return data
 
-def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=0, high=1):
+def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=-1, high=1):
     '''
     This function generates random query batch where queries are drawn from a mix of distributions.
 
@@ -35,13 +35,13 @@ def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=0, high=
     if mixtures_ratio == 0: 
         random_mean = random_floats(1, low, high)[0]
         # random_std = random_floats(1, low, high)[0]
-        random_std = [0.3]
+        random_std = [0.5]
         return random_normal_vectors(num_queries, dim, random_mean, random_std)
     elif mixtures_ratio == 1:
         for i in range(num_queries):
             random_mean = random_floats(1, low, high)[0]
             # random_std = random_floats(1, low, high)[0]
-            random_std = [0.3]
+            random_std = [0.5]
             queries[i] = random_normal_vectors(1, dim, random_mean, random_std)
         return queries
     else:
@@ -51,7 +51,7 @@ def random_queries_mix_distribs(num_queries, dim, mixtures_ratio=1, low=0, high=
             if i % sample_size == 0:
                 random_mean = random_floats(1, low, high)[0]
                 # random_std = random_floats(1, low, high)[0]
-                random_std = [0.3]
+                random_std = [0.5]
                 # print(random_mean)
             queries[i] = random_normal_vectors(1, dim, random_mean, random_std)
     return queries
