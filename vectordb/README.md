@@ -1,8 +1,12 @@
 # Create the index first
 ```
-xxx
+cd vectordb/
+mkdir shards
+
+python vectordb/create_shard_idx.py
 ```
+
 # Then run the query
 ```
-xxx
+python query_shard_idx.py
 ```
