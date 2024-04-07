@@ -6,8 +6,23 @@ Search topology 2: {idx1: [query_idx1, query_idx2...]} # intellegent batching
 '''
 
 import numpy as np
-from vectordb.query_shard_idx import query_index_file
+from utils.vdb_utils import query_index_file
 
+# fix random seed
+np.random.seed(0)
+
+def reverse_stopology(stopology):
+    '''
+    This function reverse the stopology dict.
+    '''
+    reverse_dict = {}
+    for key, val_list in stopology.items():
+        for val in val_list:
+            if val not in reverse_dict:
+                reverse_dict[val] = [key]
+            else:
+                reverse_dict[val].append(key)
+    return reverse_dict
 
 def search_outterloop_query(stopology, queries, idx_k, k, idx_paths):
     '''
