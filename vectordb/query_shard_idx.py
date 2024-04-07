@@ -4,7 +4,8 @@ Generate random queries and query shard index files
 
 import os
 import time
-import faiss
+# import faiss
+import logging
 import argparse
 import numpy as np
 
@@ -21,9 +22,14 @@ if __name__ == "__main__":
     parser.add_argument("-k", default=3, help="top k results", type=int,)
     parser.add_argument("-nq", "--num_query", default=5, help="number of queries", type=int,)
     parser.add_argument("-mr", "--mixtures_ratio", default=0., help="mixtures ratio for random queries", type=float,)
+    parser.add_argument("--log", required=False, default="logs/app.log", help="log file", type=str,)
     # hardcode args for now
     parser.add_argument("-d", "--dim", default=128, help="dimension of embeddings", type=int,)
     args = parser.parse_args()
+
+    os.makedirs("logs", exist_ok=True)
+    # Note it will keep appending to the log file if file exists!
+    logging.basicConfig(filename='logs/app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # args
     print(args)
