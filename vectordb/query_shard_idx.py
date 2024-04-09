@@ -9,6 +9,7 @@ import logging
 import argparse
 import numpy as np
 
+from utils.dispatcher import Dispatcher
 from utils.vdb_utils import load_index, random_floats, random_normal_vectors, query_index_file, random_queries_mix_distribs
 from utils.search_by_topology import search_outterloop_index, search_outterloop_query, reverse_stopology
 
@@ -40,6 +41,14 @@ if __name__ == "__main__":
     num_queries = args.num_query
     mixtures_ratio = args.mixtures_ratio
 
+    # log cfg 
+    logging.info(f"Index root: {index_root}")
+    logging.info(f"nprobe: {nprobe}")
+    logging.info(f"k: {k}")
+    logging.info(f"dim: {dim}")
+    logging.info(f"num_queries: {num_queries}")
+    logging.info(f"mixtures_ratio: {mixtures_ratio}")
+
     # idx_k: k for each index search
     # idx_k = (k // nprobe) + k
     idx_k = k
@@ -59,18 +68,8 @@ if __name__ == "__main__":
     # queries = random_normal_vectors(num_queries, dim, random_mean[0], random_std[0])
     queries = random_queries_mix_distribs(num_queries, dim, mixtures_ratio=mixtures_ratio, low=-1, high=.1)
 
-    # knn find top centroids
-    D, I = query_index_file(centriod_idx_paths, queries, nprobe)
-    print("top-{} centroids:".format(nprobe))
-    print(I)
-
-    # create search topology
-    stopology = {}
-    for i in range(num_queries):
-        stopology[i] = list(I[i])
-    
-    # reverse search topology
-    rstopology = reverse_stopology(stopology)
+    dispatcher = Dispatcher(centriod_idx_paths, queries, nprobe)
+    rstopology = dispatcher.create_search_outterloop_index_topology()
 
     # search queries
     start_time = time.perf_counter()
@@ -89,3 +88,4 @@ if __name__ == "__main__":
     print(file_idx_matrix)
 
     print(f"Search time: {qb_runtime:.8f}s")
+    logging.info(f"Search time: {qb_runtime}s")

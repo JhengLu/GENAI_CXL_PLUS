@@ -2,7 +2,9 @@ import logging
 import time
 
 class Logger:
-    
+    '''
+    A class to log the time taken by a function to execute
+    '''
     @staticmethod
     def log_index_load_time(func):
         def wrapper(*args, **kwargs):
