@@ -24,7 +24,7 @@ def create_and_store_index_gb(index_size_gb, dimension, index_file_path):
     print(f"Index saved to {index_file_path}")
 
 # Example usage
-index_size_gb = 10  # Desired index file size in GB
+index_size_gb = 20  # Desired index file size in GB
 dimension = 512  # Dimension of the vectors
 index_file_path = f"faiss_index{index_size_gb}.index"  # Path where the index will be saved
 create_and_store_index_gb(index_size_gb, dimension, index_file_path)
